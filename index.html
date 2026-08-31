@@ -11,8 +11,6 @@
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  <!-- Lucide Icons -->
-  <script src="https://unpkg.com/lucide@latest"></script>
 
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
@@ -26,18 +24,21 @@
   <script type="text/babel">
     const { useState, useEffect } = React;
 
-    const DAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
-    const HOURS = Array.from({ length: 15 }, (_, i) => `${String(i + 8).padStart(2, '0')}:00`);
+    const DAYS = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье'];
+    const SHORT_DAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
 
     function App() {
-      // Режимы: 'calendar' | 'slots_setup' | 'students'
-      const [view, setView] = useState('calendar');
+      const [view, setView] = useState('calendar'); // 'calendar' | 'slots_setup' | 'students'
       const [weekOffset, setWeekOffset] = useState(0);
 
-      // Данные в LocalStorage
+      // Рабочие слоты: [{ id, day: 0..6, startTime: "14:30", duration: 60 }]
       const [workingSlots, setWorkingSlots] = useState(() => {
-        const saved = localStorage.getItem('tutor_slots');
-        return saved ? JSON.parse(saved) : []; // [{ day: 0..6, time: "15:00" }]
+        const saved = localStorage.getItem('tutor_custom_slots');
+        return saved ? JSON.parse(saved) : [
+          { id: '1', day: 0, startTime: '14:30', duration: 60 },
+          { id: '2', day: 0, startTime: '16:00', duration: 60 },
+          { id: '3', day: 2, startTime: '15:30', duration: 60 }
+        ];
       });
 
       const [students, setStudents] = useState(() => {
@@ -48,22 +49,23 @@
         ];
       });
 
+      // Повторяющиеся уроки: [{ slotId, studentId, rate }]
       const [recurringLessons, setRecurringLessons] = useState(() => {
-        const saved = localStorage.getItem('tutor_recurring');
-        return saved ? JSON.parse(saved) : []; // [{ id, day, time, studentId, rate }]
+        const saved = localStorage.getItem('tutor_recurring_v2');
+        return saved ? JSON.parse(saved) : [];
       });
 
+      // Логи занятий по неделям: { "week_slotId": { status: 'attended'|'scheduled'|'cancelled', paidStatus: 'paid'|'unpaid' } }
       const [lessonLogs, setLessonLogs] = useState(() => {
-        const saved = localStorage.getItem('tutor_logs');
-        return saved ? JSON.parse(saved) : {}; 
-        // key: "weekOffset_day_time" -> { status: 'attended'|'missed'|'cancelled', paidStatus: 'paid'|'unpaid', note: '' }
+        const saved = localStorage.getItem('tutor_logs_v2');
+        return saved ? JSON.parse(saved) : {};
       });
 
-      const [modalSlot, setModalSlot] = useState(null); // открытое модальное окно урока
+      const [modalSlot, setModalSlot] = useState(null);
 
-      // Синхронизация с localStorage
+      // Сохранение в LocalStorage
       useEffect(() => {
-        localStorage.setItem('tutor_slots', JSON.stringify(workingSlots));
+        localStorage.setItem('tutor_custom_slots', JSON.stringify(workingSlots));
       }, [workingSlots]);
 
       useEffect(() => {
@@ -71,55 +73,59 @@
       }, [students]);
 
       useEffect(() => {
-        localStorage.setItem('tutor_recurring', JSON.stringify(recurringLessons));
+        localStorage.setItem('tutor_recurring_v2', JSON.stringify(recurringLessons));
       }, [recurringLessons]);
 
       useEffect(() => {
-        localStorage.setItem('tutor_logs', JSON.stringify(lessonLogs));
+        localStorage.setItem('tutor_logs_v2', JSON.stringify(lessonLogs));
       }, [lessonLogs]);
 
-      // Включение / выключение рабочего слота
-      const toggleWorkingSlot = (day, time) => {
-        const exists = workingSlots.some(s => s.day === day && s.time === time);
-        if (exists) {
-          setWorkingSlots(workingSlots.filter(s => !(s.day === day && s.time === time)));
-          setRecurringLessons(recurringLessons.filter(r => !(r.day === day && r.time === time)));
-        } else {
-          setWorkingSlots([...workingSlots, { day, time }]);
-        }
+      // Добавить новый слот с произвольным временем
+      const handleAddSlot = (day, startTime, duration) => {
+        const newSlot = {
+          id: Date.now().toString(),
+          day: Number(day),
+          startTime,
+          duration: Number(duration) || 60
+        };
+        const updated = [...workingSlots, newSlot].sort((a, b) => a.startTime.localeCompare(b.startTime));
+        setWorkingSlots(updated);
       };
 
-      // Добавление платежа ученику
+      // Удалить слот
+      const handleDeleteSlot = (slotId) => {
+        setWorkingSlots(workingSlots.filter(s => s.id !== slotId));
+        setRecurringLessons(recurringLessons.filter(r => r.slotId !== slotId));
+      };
+
+      // Пополнение баланса ученика
       const handleAddPayment = (studentId, amount) => {
         const val = parseFloat(amount);
         if (isNaN(val) || val <= 0) return;
         setStudents(students.map(s => s.id === studentId ? { ...s, balance: s.balance + val } : s));
       };
 
-      // Привязка ученика к повторяющемуся слоту
-      const assignStudentToSlot = (day, time, studentId, customRate) => {
-        const filtered = recurringLessons.filter(r => !(r.day === day && r.time === time));
+      // Привязка ученика к слоту
+      const assignStudentToSlot = (slotId, studentId, customRate) => {
+        const filtered = recurringLessons.filter(r => r.slotId !== slotId);
         if (studentId) {
           const student = students.find(s => s.id === studentId);
           filtered.push({
-            id: Date.now().toString(),
-            day,
-            time,
+            slotId,
             studentId,
-            rate: customRate || (student ? student.defaultRate : 50)
+            rate: Number(customRate) || (student ? student.defaultRate : 50)
           });
         }
         setRecurringLessons(filtered);
         setModalSlot(null);
       };
 
-      // Обновление лога конкретного урока на конкретной неделе
+      // Обновление статуса проведения и оплаты урока
       const updateLessonStatus = (logKey, studentId, rate, newStatus, newPaidStatus) => {
         const currentLog = lessonLogs[logKey] || {};
         const oldPaid = currentLog.paidStatus || 'unpaid';
         
         let balanceDelta = 0;
-        // Логика списания баланса при отметке оплачено
         if (oldPaid !== 'paid' && newPaidStatus === 'paid') {
           balanceDelta = -rate;
         } else if (oldPaid === 'paid' && newPaidStatus !== 'paid') {
@@ -140,52 +146,33 @@
         });
       };
 
-      // Экспорт данных в JSON
-      const exportBackup = () => {
-        const data = { workingSlots, students, recurringLessons, lessonLogs };
-        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `tutor_backup_${new Date().toISOString().slice(0,10)}.json`;
-        a.click();
+      // Вычисление времени окончания (например, 14:30 + 60 мин = 15:30)
+      const calculateEndTime = (startTime, duration) => {
+        const [h, m] = startTime.split(':').map(Number);
+        const totalMinutes = h * 60 + m + Number(duration);
+        const endH = Math.floor(totalMinutes / 60) % 24;
+        const endM = totalMinutes % 60;
+        return `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;
       };
 
-      // Импорт данных
-      const importBackup = (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = (event) => {
-          try {
-            const data = JSON.parse(event.target.result);
-            if (data.students) setStudents(data.students);
-            if (data.workingSlots) setWorkingSlots(data.workingSlots);
-            if (data.recurringLessons) setRecurringLessons(data.recurringLessons);
-            if (data.lessonLogs) setLessonLogs(data.lessonLogs);
-            alert('Данные успешно импортированы!');
-          } catch (err) {
-            alert('Ошибка чтения файла!');
-          }
-        };
-        reader.readAsText(file);
-      };
-
-      // Статистика за выбранную неделю
+      // Статистика за неделю
       const weekStats = () => {
         let plannedCount = 0;
         let earned = 0;
         let unpaidCount = 0;
 
-        recurringLessons.forEach(slot => {
-          const key = `${weekOffset}_${slot.day}_${slot.time}`;
+        recurringLessons.forEach(rel => {
+          const slot = workingSlots.find(s => s.id === rel.slotId);
+          if (!slot) return;
+
+          const key = `${weekOffset}_${rel.slotId}`;
           const log = lessonLogs[key];
-          const isAttended = log?.status === 'attended' || (!log?.status && true);
-          const isPaid = log?.paidStatus === 'paid' || (students.find(s => s.id === slot.studentId)?.balance >= slot.rate);
+          const student = students.find(s => s.id === rel.studentId);
+          const isPaid = log?.paidStatus === 'paid' || (student && student.balance >= rel.rate);
 
           if (log?.status !== 'cancelled') {
             plannedCount++;
-            if (isPaid) earned += slot.rate;
+            if (isPaid) earned += rel.rate;
             else unpaidCount++;
           }
         });
@@ -197,13 +184,13 @@
 
       return (
         <div className="max-w-7xl mx-auto p-4 sm:p-6">
-          {/* Верхняя панель */}
+          {/* Хедер */}
           <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-slate-200">
             <div>
               <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
                 📅 TutorFlow <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-semibold">CRM Репетитора</span>
               </h1>
-              <p className="text-sm text-slate-500 mt-0.5">Расписание, учет оплат и баланс занятий</p>
+              <p className="text-sm text-slate-500 mt-0.5">Гибкие часы работы, учет оплат и баланс занятий</p>
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
@@ -217,7 +204,7 @@
                 onClick={() => setView('slots_setup')} 
                 className={`px-3.5 py-1.5 rounded-lg text-sm font-medium transition ${view === 'slots_setup' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'}`}
               >
-                ⚙️ Настройка слотов
+                ⚙️ Часы работы (Любое время)
               </button>
               <button 
                 onClick={() => setView('students')} 
@@ -225,20 +212,10 @@
               >
                 👥 Ученики & Баланс
               </button>
-              
-              <div className="h-6 w-px bg-slate-200 mx-1"></div>
-              
-              <button onClick={exportBackup} title="Скачать бэкап" className="p-2 bg-white text-slate-600 hover:bg-slate-100 border border-slate-200 rounded-lg text-xs font-medium">
-                💾 Бэкап
-              </button>
-              <label className="p-2 bg-white text-slate-600 hover:bg-slate-100 border border-slate-200 rounded-lg text-xs font-medium cursor-pointer" title="Загрузить бэкап">
-                📂 Импорт
-                <input type="file" accept=".json" onChange={importBackup} className="hidden" />
-              </label>
             </div>
           </header>
 
-          {/* Вид: Календарь */}
+          {/* Вид: Календарь (По дням недели) */}
           {view === 'calendar' && (
             <div className="mt-6">
               {/* Недельная навигация и сводка */}
@@ -252,9 +229,9 @@
                   </span>
                 </div>
 
-                <div className="flex items-center gap-4 text-xs sm:text-sm">
+                <div className="flex items-center gap-3 text-xs sm:text-sm">
                   <div className="bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100">
-                    <span className="text-slate-500">Занятий:</span> <strong className="text-slate-800">{stats.plannedCount}</strong>
+                    <span className="text-slate-500">Уроков:</span> <strong className="text-slate-800">{stats.plannedCount}</strong>
                   </div>
                   <div className="bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-100">
                     <span className="text-emerald-700">Оплачено/в балансе:</span> <strong className="text-emerald-800">{stats.earned} zł</strong>
@@ -265,138 +242,107 @@
                 </div>
               </div>
 
-              {/* Сетка календаря */}
-              <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-x-auto custom-scrollbar">
-                <div className="min-w-[850px]">
-                  {/* Заголовки дней */}
-                  <div className="grid grid-cols-8 border-b border-slate-200 bg-slate-50 text-center text-xs font-semibold text-slate-600">
-                    <div className="p-3 border-r border-slate-200">Время</div>
-                    {DAYS.map((d, i) => (
-                      <div key={d} className="p-3 border-r border-slate-200 last:border-r-0">
-                        {d}
-                      </div>
-                    ))}
-                  </div>
+              {/* Колонки дней недели */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-7 gap-4">
+                {DAYS.map((dayName, dayIdx) => {
+                  const daySlots = workingSlots
+                    .filter(s => s.day === dayIdx)
+                    .sort((a, b) => a.startTime.localeCompare(b.startTime));
 
-                  {/* Временные ряды */}
-                  {HOURS.map(time => (
-                    <div key={time} className="grid grid-cols-8 border-b border-slate-100 min-h-[70px]">
-                      <div className="p-2 text-xs font-medium text-slate-400 text-center border-r border-slate-200 bg-slate-50/50 flex items-center justify-center">
-                        {time}
+                  return (
+                    <div key={dayName} className="bg-slate-100/70 p-3 rounded-xl border border-slate-200 flex flex-col min-h-[400px]">
+                      <div className="font-bold text-sm text-slate-800 pb-2 mb-2 border-b border-slate-200 flex justify-between items-center">
+                        <span>{dayName}</span>
+                        <span className="text-xs bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded-full">{daySlots.length}</span>
                       </div>
 
-                      {DAYS.map((_, dayIdx) => {
-                        const isWorking = workingSlots.some(s => s.day === dayIdx && s.time === time);
-                        const recurring = recurringLessons.find(r => r.day === dayIdx && r.time === time);
-                        const student = recurring ? students.find(s => s.id === recurring.studentId) : null;
-                        
-                        const logKey = `${weekOffset}_${dayIdx}_${time}`;
-                        const log = lessonLogs[logKey];
-                        
-                        // Проверка статуса оплаты (с учетом аванса ученика)
-                        const isAutoPaidByBalance = student && student.balance >= (recurring?.rate || 0);
-                        const isPaid = log?.paidStatus === 'paid' || (log?.paidStatus === undefined && isAutoPaidByBalance);
-                        const status = log?.status || 'scheduled';
+                      {daySlots.length === 0 ? (
+                        <div className="flex-1 flex items-center justify-center text-xs text-slate-400 italic">
+                          Выходной
+                        </div>
+                      ) : (
+                        <div className="space-y-2.5 flex-1">
+                          {daySlots.map(slot => {
+                            const recurring = recurringLessons.find(r => r.slotId === slot.id);
+                            const student = recurring ? students.find(s => s.id === recurring.studentId) : null;
+                            const logKey = `${weekOffset}_${slot.id}`;
+                            const log = lessonLogs[logKey];
 
-                        return (
-                          <div 
-                            key={dayIdx} 
-                            className={`p-1.5 border-r border-slate-100 last:border-r-0 relative transition ${!isWorking ? 'bg-slate-100/60' : 'hover:bg-indigo-50/30'}`}
-                          >
-                            {isWorking && !recurring && (
-                              <button 
-                                onClick={() => setModalSlot({ day: dayIdx, time, recurring: null })}
-                                className="w-full h-full border border-dashed border-slate-300 hover:border-indigo-400 hover:bg-white rounded-lg flex items-center justify-center text-slate-400 hover:text-indigo-600 text-xs font-medium transition"
-                              >
-                                + Записать
-                              </button>
-                            )}
+                            const isAutoPaidByBalance = student && student.balance >= (recurring?.rate || 0);
+                            const isPaid = log?.paidStatus === 'paid' || (log?.paidStatus === undefined && isAutoPaidByBalance);
+                            const status = log?.status || 'scheduled';
 
-                            {isWorking && recurring && student && (
-                              <div 
-                                onClick={() => setModalSlot({ day: dayIdx, time, recurring, logKey, student, log })}
-                                className={`h-full w-full p-2 rounded-lg cursor-pointer border flex flex-col justify-between transition shadow-sm ${
-                                  status === 'cancelled' 
-                                    ? 'bg-rose-50 border-rose-200 opacity-60 text-slate-500' 
-                                    : status === 'attended' 
-                                    ? 'bg-emerald-50/60 border-emerald-200' 
-                                    : 'bg-white border-slate-200 hover:border-indigo-300'
-                                }`}
-                              >
-                                <div>
-                                  <div className="flex items-center justify-between gap-1">
-                                    <span className="font-semibold text-xs text-slate-900 truncate">{student.name}</span>
-                                    <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${isPaid ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
-                                      {isPaid ? 'Оплачено' : 'Долг'}
-                                    </span>
+                            return (
+                              <div key={slot.id} className="bg-white rounded-lg border border-slate-200 p-2.5 shadow-sm">
+                                <div className="flex items-center justify-between text-xs font-semibold text-slate-500 mb-1.5">
+                                  <span>⏰ {slot.startTime} – {calculateEndTime(slot.startTime, slot.duration)}</span>
+                                  <span className="text-[10px] text-slate-400">{slot.duration} мин</span>
+                                </div>
+
+                                {!recurring ? (
+                                  <button 
+                                    onClick={() => setModalSlot({ slot, recurring: null })}
+                                    className="w-full py-2 border border-dashed border-slate-300 hover:border-indigo-400 hover:bg-indigo-50/30 rounded text-slate-400 hover:text-indigo-600 text-xs font-medium transition"
+                                  >
+                                    + Записать ученика
+                                  </button>
+                                ) : (
+                                  <div 
+                                    onClick={() => setModalSlot({ slot, recurring, logKey, student, log })}
+                                    className={`p-2 rounded-lg cursor-pointer border transition ${
+                                      status === 'cancelled' 
+                                        ? 'bg-rose-50/70 border-rose-200 opacity-60 text-slate-500' 
+                                        : status === 'attended' 
+                                        ? 'bg-emerald-50/60 border-emerald-200' 
+                                        : 'bg-indigo-50/40 border-indigo-100 hover:border-indigo-300'
+                                    }`}
+                                  >
+                                    <div className="flex justify-between items-start gap-1">
+                                      <span className="font-bold text-xs text-slate-900 truncate">{student?.name}</span>
+                                      <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold shrink-0 ${isPaid ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+                                        {isPaid ? 'Оплачено' : 'Долг'}
+                                      </span>
+                                    </div>
+
+                                    <div className="text-[11px] text-slate-600 mt-1 flex justify-between items-center">
+                                      <span>{recurring.rate} zł</span>
+                                      {student?.balance > 0 && (
+                                        <span className="text-[10px] text-emerald-700 font-medium">Баланс: +{student.balance} zł</span>
+                                      )}
+                                    </div>
+
+                                    <div className="text-[10px] text-slate-400 pt-1 mt-1 border-t border-slate-200/60 flex justify-between items-center">
+                                      <span>
+                                        {status === 'scheduled' && '⏳ Запланирован'}
+                                        {status === 'attended' && '✅ Проведен'}
+                                        {status === 'cancelled' && '❌ Отменен'}
+                                      </span>
+                                    </div>
                                   </div>
-                                  <div className="text-[11px] text-slate-500 mt-0.5">{recurring.rate} zł</div>
-                                </div>
-
-                                <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-slate-100">
-                                  <span>
-                                    {status === 'scheduled' && '⏳ Запланирован'}
-                                    {status === 'attended' && '✅ Проведен'}
-                                    {status === 'cancelled' && '❌ Отменен'}
-                                  </span>
-                                  {student.balance > 0 && (
-                                    <span className="text-indigo-600 font-medium" title="Остаток на балансе">+{student.balance} zł</span>
-                                  )}
-                                </div>
+                                )}
                               </div>
-                            )}
-                          </div>
-                        );
-                      })}
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
-                  ))}
-                </div>
+                  );
+                })}
               </div>
             </div>
           )}
 
-          {/* Вид: Настройка рабочих слотов */}
+          {/* Вид: Настройка рабочих слотов (любое произвольное время) */}
           {view === 'slots_setup' && (
-            <div className="mt-6 bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-              <div className="max-w-2xl mb-6">
-                <h2 className="text-lg font-bold text-slate-900">1. Настройте свои рабочие часы</h2>
-                <p className="text-sm text-slate-600 mt-1">
-                  Нажимайте на ячейки, чтобы отметить время, когда вы готовы проводить занятия. Эти слоты станут активным каркасом вашего календаря на каждую неделю.
-                </p>
-              </div>
-
-              <div className="grid grid-cols-8 border border-slate-200 rounded-lg overflow-hidden text-center text-xs">
-                <div className="p-2.5 font-bold bg-slate-100 border-b border-r border-slate-200">Время</div>
-                {DAYS.map(d => (
-                  <div key={d} className="p-2.5 font-bold bg-slate-100 border-b border-r border-slate-200 last:border-r-0">{d}</div>
-                ))}
-
-                {HOURS.map(time => (
-                  <React.Fragment key={time}>
-                    <div className="p-2 border-b border-r border-slate-200 bg-slate-50 font-medium text-slate-500 flex items-center justify-center">
-                      {time}
-                    </div>
-                    {DAYS.map((_, dayIdx) => {
-                      const isActive = workingSlots.some(s => s.day === dayIdx && s.time === time);
-                      return (
-                        <button
-                          key={dayIdx}
-                          onClick={() => toggleWorkingSlot(dayIdx, time)}
-                          className={`p-2 border-b border-r border-slate-200 last:border-r-0 text-xs font-semibold transition ${
-                            isActive ? 'bg-indigo-600 text-white hover:bg-indigo-700' : 'bg-white hover:bg-slate-50 text-slate-300'
-                          }`}
-                        >
-                          {isActive ? '✓ Работа' : '—'}
-                        </button>
-                      );
-                    })}
-                  </React.Fragment>
-                ))}
-              </div>
-            </div>
+            <SlotsManager 
+              workingSlots={workingSlots} 
+              onAddSlot={handleAddSlot} 
+              onDeleteSlot={handleDeleteSlot}
+              calculateEndTime={calculateEndTime}
+            />
           )}
 
-          {/* Вид: Ученики & Баланс */}
+          {/* Вид: Ученики */}
           {view === 'students' && (
             <StudentsManager 
               students={students} 
@@ -405,22 +351,119 @@
             />
           )}
 
-          {/* Модальное окно управления уроком */}
+          {/* Модальное окно занятия */}
           {modalSlot && (
             <LessonModal 
-              slot={modalSlot} 
+              data={modalSlot} 
               onClose={() => setModalSlot(null)}
               students={students}
               onAssign={assignStudentToSlot}
               onUpdateStatus={updateLessonStatus}
               onAddPayment={handleAddPayment}
+              calculateEndTime={calculateEndTime}
             />
           )}
         </div>
       );
     }
 
-    // Компонент списка учеников
+    // Менеджер произвольных слотов
+    function SlotsManager({ workingSlots, onAddSlot, onDeleteSlot, calculateEndTime }) {
+      const [day, setDay] = useState(0);
+      const [startTime, setStartTime] = useState('14:30');
+      const [duration, setDuration] = useState(60);
+
+      const handleFormSubmit = (e) => {
+        e.preventDefault();
+        onAddSlot(day, startTime, duration);
+      };
+
+      return (
+        <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm h-fit">
+            <h3 className="font-bold text-slate-900 mb-3">Добавить рабочее время</h3>
+            <p className="text-xs text-slate-500 mb-4">Вы можете вводить абсолютно любое время (напр. 14:30, 15:15).</p>
+            
+            <form onSubmit={handleFormSubmit} className="space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">День недели</label>
+                <select 
+                  value={day} 
+                  onChange={e => setDay(Number(e.target.value))}
+                  className="w-full text-sm px-3 py-2 border border-slate-300 rounded-lg focus:outline-indigo-500"
+                >
+                  {DAYS.map((d, idx) => <option key={d} value={idx}>{d}</option>)}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Время начала</label>
+                <input 
+                  type="time" 
+                  value={startTime} 
+                  onChange={e => setStartTime(e.target.value)}
+                  className="w-full text-sm px-3 py-2 border border-slate-300 rounded-lg focus:outline-indigo-500"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Длительность урока</label>
+                <select 
+                  value={duration} 
+                  onChange={e => setDuration(Number(e.target.value))}
+                  className="w-full text-sm px-3 py-2 border border-slate-300 rounded-lg focus:outline-indigo-500"
+                >
+                  <option value={45}>45 минут</option>
+                  <option value={60}>60 минут (1 час)</option>
+                  <option value={90}>90 минут (1.5 часа)</option>
+                  <option value={120}>120 минут (2 часа)</option>
+                </select>
+              </div>
+
+              <button type="submit" className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-semibold transition">
+                + Добавить слот
+              </button>
+            </form>
+          </div>
+
+          {/* Список настроенных слотов */}
+          <div className="md:col-span-2 space-y-4">
+            <h3 className="font-bold text-slate-900">Ваши регулярные часы работы</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {DAYS.map((dName, dIdx) => {
+                const daySlots = workingSlots.filter(s => s.day === dIdx).sort((a,b) => a.startTime.localeCompare(b.startTime));
+                if (daySlots.length === 0) return null;
+
+                return (
+                  <div key={dName} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                    <h4 className="font-bold text-xs text-indigo-600 uppercase tracking-wider mb-2">{dName}</h4>
+                    <div className="space-y-1.5">
+                      {daySlots.map(s => (
+                        <div key={s.id} className="flex justify-between items-center text-xs bg-slate-50 p-2 rounded border border-slate-100">
+                          <span className="font-medium text-slate-700">
+                            {s.startTime} – {calculateEndTime(s.startTime, s.duration)} ({s.duration} мин)
+                          </span>
+                          <button 
+                            onClick={() => onDeleteSlot(s.id)}
+                            className="text-rose-500 hover:text-rose-700 font-bold px-1.5"
+                            title="Удалить слот"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // Менеджер учеников
     function StudentsManager({ students, setStudents, onAddPayment }) {
       const [name, setName] = useState('');
       const [rate, setRate] = useState(50);
@@ -451,7 +494,6 @@
 
       return (
         <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Форма добавления */}
           <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm h-fit">
             <h3 className="font-bold text-slate-900 mb-4">Добавить ученика</h3>
             <form onSubmit={handleAddStudent} className="space-y-3">
@@ -482,7 +524,7 @@
                   type="text" 
                   value={note} 
                   onChange={e => setNote(e.target.value)} 
-                  placeholder="напр. 9 класс, ОГЭ / Математика"
+                  placeholder="напр. 8 класс / подготовка"
                   className="w-full text-sm px-3 py-2 border border-slate-300 rounded-lg focus:outline-indigo-500"
                 />
               </div>
@@ -492,7 +534,6 @@
             </form>
           </div>
 
-          {/* Список учеников */}
           <div className="md:col-span-2 space-y-3">
             <h3 className="font-bold text-slate-900 mb-2">Список учеников и лицевой счет ({students.length})</h3>
             {students.map(st => (
@@ -536,14 +577,14 @@
     }
 
     // Модальное окно занятия
-    function LessonModal({ slot, onClose, students, onAssign, onUpdateStatus, onAddPayment }) {
-      const [selectedStudentId, setSelectedStudentId] = useState(slot.recurring?.studentId || '');
-      const [customRate, setCustomRate] = useState(slot.recurring?.rate || 50);
+    function LessonModal({ data, onClose, students, onAssign, onUpdateStatus, onAddPayment, calculateEndTime }) {
+      const { slot, recurring, logKey, student, log } = data;
+      const [selectedStudentId, setSelectedStudentId] = useState(recurring?.studentId || '');
+      const [customRate, setCustomRate] = useState(recurring?.rate || 50);
       const [paymentAddVal, setPaymentAddVal] = useState('');
 
-      const student = slot.student;
-      const isPaid = slot.log?.paidStatus === 'paid' || (student && student.balance >= (slot.recurring?.rate || 0));
-      const currentStatus = slot.log?.status || 'scheduled';
+      const isPaid = log?.paidStatus === 'paid' || (student && student.balance >= (recurring?.rate || 0));
+      const currentStatus = log?.status || 'scheduled';
 
       const handleAddDeposit = () => {
         if (!student || !paymentAddVal) return;
@@ -556,15 +597,14 @@
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-200">
             <div className="flex justify-between items-center pb-3 border-b border-slate-100">
               <h3 className="font-bold text-slate-900 text-base">
-                {DAYS[slot.day]}, {slot.time}
+                {DAYS[slot.day]}, {slot.startTime} – {calculateEndTime(slot.startTime, slot.duration)}
               </h3>
               <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-lg">✕</button>
             </div>
 
-            {/* Если слот еще не назначен на ученика */}
-            {!slot.recurring ? (
+            {!recurring ? (
               <div className="mt-4 space-y-4">
-                <p className="text-xs text-slate-600">Назначить регулярного ученика на этот час:</p>
+                <p className="text-xs text-slate-600">Закрепить регулярного ученика за этим слотом:</p>
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1">Выберите ученика</label>
                   <select 
@@ -592,7 +632,7 @@
                 </div>
 
                 <button 
-                  onClick={() => onAssign(slot.day, slot.time, selectedStudentId, customRate)}
+                  onClick={() => onAssign(slot.id, selectedStudentId, customRate)}
                   disabled={!selectedStudentId}
                   className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 text-white rounded-lg text-sm font-semibold transition"
                 >
@@ -600,19 +640,18 @@
                 </button>
               </div>
             ) : (
-              /* Управление текущим уроком */
               <div className="mt-4 space-y-4">
                 <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 text-sm">
                   <div className="flex justify-between font-bold text-slate-900">
                     <span>{student?.name}</span>
-                    <span>{slot.recurring.rate} zł</span>
+                    <span>{recurring.rate} zł</span>
                   </div>
                   <div className="text-xs text-slate-500 mt-1">
                     Баланс предоплаты: <strong className="text-indigo-600">{student?.balance || 0} zł</strong>
                   </div>
                 </div>
 
-                {/* Пополнение прямо в окне урока */}
+                {/* Внесение предоплаты */}
                 <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
                   <label className="block text-[11px] font-bold text-emerald-800 mb-1">Внести оплату (например 100 zł за 2 урока):</label>
                   <div className="flex gap-2">
@@ -632,24 +671,24 @@
                   </div>
                 </div>
 
-                {/* Статус посещения */}
+                {/* Статус */}
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Статус проведения:</label>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Статус урока:</label>
                   <div className="grid grid-cols-3 gap-2">
                     <button 
-                      onClick={() => onUpdateStatus(slot.logKey, student.id, slot.recurring.rate, 'attended', isPaid ? 'paid' : 'unpaid')}
+                      onClick={() => onUpdateStatus(logKey, student.id, recurring.rate, 'attended', isPaid ? 'paid' : 'unpaid')}
                       className={`py-1.5 px-2 text-xs font-bold rounded-lg border transition ${currentStatus === 'attended' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white border-slate-200 hover:bg-slate-50'}`}
                     >
                       ✅ Был
                     </button>
                     <button 
-                      onClick={() => onUpdateStatus(slot.logKey, student.id, slot.recurring.rate, 'scheduled', isPaid ? 'paid' : 'unpaid')}
+                      onClick={() => onUpdateStatus(logKey, student.id, recurring.rate, 'scheduled', isPaid ? 'paid' : 'unpaid')}
                       className={`py-1.5 px-2 text-xs font-bold rounded-lg border transition ${currentStatus === 'scheduled' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white border-slate-200 hover:bg-slate-50'}`}
                     >
-                      ⏳ Планируется
+                      ⏳ Запланирован
                     </button>
                     <button 
-                      onClick={() => onUpdateStatus(slot.logKey, student.id, slot.recurring.rate, 'cancelled', 'unpaid')}
+                      onClick={() => onUpdateStatus(logKey, student.id, recurring.rate, 'cancelled', 'unpaid')}
                       className={`py-1.5 px-2 text-xs font-bold rounded-lg border transition ${currentStatus === 'cancelled' ? 'bg-rose-600 text-white border-rose-600' : 'bg-white border-slate-200 hover:bg-slate-50'}`}
                     >
                       ❌ Отменен
@@ -657,17 +696,16 @@
                   </div>
                 </div>
 
-                {/* Открепить ученика */}
                 <div className="pt-2 border-t border-slate-100 flex justify-between">
                   <button 
                     onClick={() => {
                       if (confirm('Освободить этот слот во все недели?')) {
-                        onAssign(slot.day, slot.time, null);
+                        onAssign(slot.id, null);
                       }
                     }}
                     className="text-xs text-rose-600 hover:underline"
                   >
-                    Освободить слот насовсем
+                    Освободить слот
                   </button>
                   <button onClick={onClose} className="px-4 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg">
                     Готово
