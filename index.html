@@ -3,12 +3,16 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Календарь Репетитора</title>
+  <title>Календарь Репетитора (Облако Firebase)</title>
   
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
 
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
@@ -20,56 +24,101 @@
   <div id="root"></div>
 
   <script type="text/babel">
-    const { useState, useEffect } = React;
+    const { useState, useEffect, useMemo } = React;
 
-    const DAYS = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье'];
+    // Вшитые ключи вашего проекта Firebase
+    const firebaseConfig = {
+      apiKey: "AIzaSyBsBQ9k2NT2QtMaiPgwxiXWs8emABm8GzA",
+      authDomain: "tutor-calendar-b5653.firebaseapp.com",
+      projectId: "tutor-calendar-b5653",
+      storageBucket: "tutor-calendar-b5653.firebasestorage.app",
+      messagingSenderId: "351202173543",
+      appId: "1:351202173543:web:5a5561cebcdad3b4ed6ac2",
+      measurementId: "G-76Y96NQ1J4"
+    };
+
+    if (!firebase.apps.length) {
+      firebase.initializeApp(firebaseConfig);
+    }
+    const db = firebase.firestore();
+    const docRef = db.collection('tutor_data').doc('main_schedule');
+
+    const DAY_NAMES = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье'];
+    const MONTH_NAMES = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+
+    function getWeekDays(offset = 0) {
+      const now = new Date();
+      const dayOfWeek = now.getDay();
+      const diffToMonday = (dayOfWeek === 0 ? -6 : 1) - dayOfWeek;
+      
+      const monday = new Date(now);
+      monday.setDate(now.getDate() + diffToMonday + (offset * 7));
+      monday.setHours(0, 0, 0, 0);
+
+      const days = [];
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(monday);
+        d.setDate(monday.getDate() + i);
+        days.push(d);
+      }
+      return days;
+    }
+
+    function formatDateKey(date) {
+      return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    }
 
     function App() {
-      // Режимы: 'calendar' | 'slots_setup' | 'students'
-      const [view, setView] = useState('slots_setup'); // Сразу открываем настройку слотов
+      const [view, setView] = useState('calendar');
       const [weekOffset, setWeekOffset] = useState(0);
+      const [syncStatus, setSyncStatus] = useState('Подключение к облаку...');
 
-      // Полностью пустые базы по умолчанию
-      const [workingSlots, setWorkingSlots] = useState(() => {
-        const saved = localStorage.getItem('my_tutor_slots_v3');
-        return saved ? JSON.parse(saved) : [];
-      });
+      const weekDays = useMemo(() => getWeekDays(weekOffset), [weekOffset]);
 
-      const [students, setStudents] = useState(() => {
-        const saved = localStorage.getItem('my_tutor_students_v3');
-        return saved ? JSON.parse(saved) : [];
-      });
-
-      const [recurringLessons, setRecurringLessons] = useState(() => {
-        const saved = localStorage.getItem('my_tutor_recurring_v3');
-        return saved ? JSON.parse(saved) : [];
-      });
-
-      const [lessonLogs, setLessonLogs] = useState(() => {
-        const saved = localStorage.getItem('my_tutor_logs_v3');
-        return saved ? JSON.parse(saved) : {};
-      });
+      const [workingSlots, setWorkingSlots] = useState([]);
+      const [students, setStudents] = useState([]);
+      const [recurringLessons, setRecurringLessons] = useState([]);
+      const [lessonLogs, setLessonLogs] = useState({});
 
       const [modalSlot, setModalSlot] = useState(null);
 
-      // Сохранение в браузере
+      // Синхронизация с Firestore в реальном времени
       useEffect(() => {
-        localStorage.setItem('my_tutor_slots_v3', JSON.stringify(workingSlots));
-      }, [workingSlots]);
+        const unsubscribe = docRef.onSnapshot((doc) => {
+          if (doc.exists) {
+            const data = doc.data();
+            setWorkingSlots(data.workingSlots || []);
+            setStudents(data.students || []);
+            setRecurringLessons(data.recurringLessons || []);
+            setLessonLogs(data.lessonLogs || {});
+            setSyncStatus('Облако подключено 🟢');
+          } else {
+            docRef.set({
+              workingSlots: [],
+              students: [],
+              recurringLessons: [],
+              lessonLogs: {}
+            });
+            setSyncStatus('Облако подключено 🟢');
+          }
+        }, (error) => {
+          console.error("Ошибка Firebase:", error);
+          setSyncStatus('Ошибка облака 🔴 (проверьте Test mode в базе)');
+        });
 
-      useEffect(() => {
-        localStorage.setItem('my_tutor_students_v3', JSON.stringify(students));
-      }, [students]);
+        return () => unsubscribe();
+      }, []);
 
-      useEffect(() => {
-        localStorage.setItem('my_tutor_recurring_v3', JSON.stringify(recurringLessons));
-      }, [recurringLessons]);
+      const saveToCloud = (updates) => {
+        setSyncStatus('Сохранение... ⏳');
+        docRef.set(updates, { merge: true })
+          .then(() => setSyncStatus('Облако подключено 🟢'))
+          .catch((err) => {
+            console.error(err);
+            setSyncStatus('Ошибка сохранения 🔴');
+          });
+      };
 
-      useEffect(() => {
-        localStorage.setItem('my_tutor_logs_v3', JSON.stringify(lessonLogs));
-      }, [lessonLogs]);
-
-      // Добавить произвольный рабочий слот (любое время)
       const handleAddSlot = (day, startTime, duration) => {
         const newSlot = {
           id: Date.now().toString(),
@@ -79,29 +128,34 @@
         };
         const updated = [...workingSlots, newSlot].sort((a, b) => a.startTime.localeCompare(b.startTime));
         setWorkingSlots(updated);
+        saveToCloud({ workingSlots: updated });
       };
 
-      // Удалить рабочий слот
       const handleDeleteSlot = (slotId) => {
-        setWorkingSlots(workingSlots.filter(s => s.id !== slotId));
-        setRecurringLessons(recurringLessons.filter(r => r.slotId !== slotId));
+        const updatedSlots = workingSlots.filter(s => s.id !== slotId);
+        const updatedRec = recurringLessons.filter(r => r.slotId !== slotId);
+        setWorkingSlots(updatedSlots);
+        setRecurringLessons(updatedRec);
+        saveToCloud({ workingSlots: updatedSlots, recurringLessons: updatedRec });
       };
 
-      // Удалить ученика
       const handleDeleteStudent = (studentId) => {
-        if (!confirm('Удалить ученика? Все закрепленные за ним часы освободятся.')) return;
-        setStudents(students.filter(s => s.id !== studentId));
-        setRecurringLessons(recurringLessons.filter(r => r.studentId !== studentId));
+        if (!confirm('Удалить ученика? Занятия с ним будут очищены.')) return;
+        const updatedStudents = students.filter(s => s.id !== studentId);
+        const updatedRec = recurringLessons.filter(r => r.studentId !== studentId);
+        setStudents(updatedStudents);
+        setRecurringLessons(updatedRec);
+        saveToCloud({ students: updatedStudents, recurringLessons: updatedRec });
       };
 
-      // Пополнение баланса ученика
       const handleAddPayment = (studentId, amount) => {
         const val = parseFloat(amount);
         if (isNaN(val) || val <= 0) return;
-        setStudents(students.map(s => s.id === studentId ? { ...s, balance: s.balance + val } : s));
+        const updated = students.map(s => s.id === studentId ? { ...s, balance: s.balance + val } : s);
+        setStudents(updated);
+        saveToCloud({ students: updated });
       };
 
-      // Закрепление ученика за слотом
       const assignStudentToSlot = (slotId, studentId, customRate) => {
         const filtered = recurringLessons.filter(r => r.slotId !== slotId);
         if (studentId) {
@@ -113,10 +167,10 @@
           });
         }
         setRecurringLessons(filtered);
+        saveToCloud({ recurringLessons: filtered });
         setModalSlot(null);
       };
 
-      // Статусы уроков и автосписание баланса
       const updateLessonStatus = (logKey, studentId, rate, newStatus, newPaidStatus) => {
         const currentLog = lessonLogs[logKey] || {};
         const oldPaid = currentLog.paidStatus || 'unpaid';
@@ -128,18 +182,22 @@
           balanceDelta = rate;
         }
 
+        let updatedStudents = students;
         if (balanceDelta !== 0) {
-          setStudents(students.map(s => s.id === studentId ? { ...s, balance: s.balance + balanceDelta } : s));
+          updatedStudents = students.map(s => s.id === studentId ? { ...s, balance: s.balance + balanceDelta } : s);
+          setStudents(updatedStudents);
         }
 
-        setLessonLogs({
+        const updatedLogs = {
           ...lessonLogs,
           [logKey]: {
             ...currentLog,
             status: newStatus,
             paidStatus: newPaidStatus
           }
-        });
+        };
+        setLessonLogs(updatedLogs);
+        saveToCloud({ students: updatedStudents, lessonLogs: updatedLogs });
       };
 
       const calculateEndTime = (startTime, duration) => {
@@ -151,42 +209,51 @@
         return `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;
       };
 
-      // Подсчет статистики
       const weekStats = () => {
         let plannedCount = 0;
         let earned = 0;
         let unpaidCount = 0;
 
-        recurringLessons.forEach(rel => {
-          const slot = workingSlots.find(s => s.id === rel.slotId);
-          if (!slot) return;
+        weekDays.forEach((date, dayIdx) => {
+          const dateStr = formatDateKey(date);
+          const daySlots = workingSlots.filter(s => s.day === dayIdx);
+          
+          daySlots.forEach(slot => {
+            const rel = recurringLessons.find(r => r.slotId === slot.id);
+            if (!rel) return;
 
-          const key = `${weekOffset}_${rel.slotId}`;
-          const log = lessonLogs[key];
-          const student = students.find(s => s.id === rel.studentId);
-          const isPaid = log?.paidStatus === 'paid' || (student && student.balance >= rel.rate);
+            const logKey = `${dateStr}_${slot.id}`;
+            const log = lessonLogs[logKey];
+            const student = students.find(s => s.id === rel.studentId);
+            const isPaid = log?.paidStatus === 'paid' || (student && student.balance >= rel.rate);
 
-          if (log?.status !== 'cancelled') {
-            plannedCount++;
-            if (isPaid) earned += rel.rate;
-            else unpaidCount++;
-          }
+            if (log?.status !== 'cancelled') {
+              plannedCount++;
+              if (isPaid) earned += rel.rate;
+              else unpaidCount++;
+            }
+          });
         });
 
         return { plannedCount, earned, unpaidCount };
       };
 
       const stats = weekStats();
+      const todayStr = formatDateKey(new Date());
 
       return (
         <div className="max-w-7xl mx-auto p-4 sm:p-6">
-          {/* Хедер */}
           <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-slate-200">
             <div>
-              <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
-                📅 Мой Календарь Репетитора
-              </h1>
-              <p className="text-sm text-slate-500 mt-0.5">Удобное расписание и учет оплат в zł</p>
+              <div className="flex items-center gap-3">
+                <h1 className="text-2xl font-bold text-slate-900 tracking-tight">📅 Календарь Репетитора</h1>
+                <span className="text-[11px] font-semibold bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full border border-slate-200">
+                  {syncStatus}
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mt-1">
+                Сегодня: <strong className="text-slate-700">{new Date().toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</strong>
+              </p>
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
@@ -194,13 +261,13 @@
                 onClick={() => setView('calendar')} 
                 className={`px-3.5 py-1.5 rounded-lg text-sm font-semibold transition ${view === 'calendar' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'}`}
               >
-                1. Расписание
+                1. Расписание по дням
               </button>
               <button 
                 onClick={() => setView('slots_setup')} 
                 className={`px-3.5 py-1.5 rounded-lg text-sm font-semibold transition ${view === 'slots_setup' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'}`}
               >
-                ⚙️ 2. Расставить рабочие часы
+                ⚙️ 2. Часы работы ({workingSlots.length})
               </button>
               <button 
                 onClick={() => setView('students')} 
@@ -211,75 +278,96 @@
             </div>
           </header>
 
-          {/* ВИД: НАСТРОЙКА СВОИХ ЧАСОВ */}
-          {view === 'slots_setup' && (
-            <SlotsManager 
-              workingSlots={workingSlots} 
-              onAddSlot={handleAddSlot} 
-              onDeleteSlot={handleDeleteSlot}
-              calculateEndTime={calculateEndTime}
-              onGoToCalendar={() => setView('calendar')}
-            />
-          )}
-
           {/* ВИД: КАЛЕНДАРЬ */}
           {view === 'calendar' && (
             <div className="mt-6">
               {workingSlots.length === 0 ? (
-                <div className="bg-amber-50 border border-amber-200 p-6 rounded-xl text-center">
-                  <h3 className="font-bold text-amber-900 text-base mb-1">Вы еще не выставили рабочие часы</h3>
-                  <p className="text-sm text-amber-700 mb-4">Сначала укажите время, в которое вы можете работать (например, Пн 14:30, Ср 16:00).</p>
+                <div className="bg-amber-50 border border-amber-200 p-8 rounded-xl text-center">
+                  <h3 className="font-bold text-amber-900 text-base mb-1">Вы пока не выставили часы работы</h3>
+                  <p className="text-sm text-amber-700 mb-4">Укажите время, в которое вы готовы работать, и оно автоматически появится во всех неделях.</p>
                   <button onClick={() => setView('slots_setup')} className="px-4 py-2 bg-indigo-600 text-white font-semibold text-sm rounded-lg hover:bg-indigo-700">
-                    Перейти к расстановке часов →
+                    Перейти к настройке часов →
                   </button>
                 </div>
               ) : (
                 <>
-                  {/* Навигация */}
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
                     <div className="flex items-center gap-2">
-                      <button onClick={() => setWeekOffset(w => w - 1)} className="p-1.5 border border-slate-200 rounded-lg hover:bg-slate-100 font-bold">← Пред. нед.</button>
-                      <button onClick={() => setWeekOffset(0)} className="px-3 py-1 border border-slate-200 rounded-lg hover:bg-slate-100 text-xs font-semibold">Текущая неделя</button>
-                      <button onClick={() => setWeekOffset(w => w + 1)} className="p-1.5 border border-slate-200 rounded-lg hover:bg-slate-100 font-bold">След. нед. →</button>
+                      <button 
+                        onClick={() => setWeekOffset(prev => prev - 1)} 
+                        className="px-3 py-1.5 border border-slate-200 rounded-lg hover:bg-slate-100 font-semibold text-xs transition"
+                      >
+                        ← Пред. неделя
+                      </button>
+                      <button 
+                        onClick={() => setWeekOffset(0)} 
+                        className={`px-3 py-1.5 border rounded-lg text-xs font-bold transition ${weekOffset === 0 ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'hover:bg-slate-100 border-slate-200'}`}
+                      >
+                        Текущая (Сегодня)
+                      </button>
+                      <button 
+                        onClick={() => setWeekOffset(prev => prev + 1)} 
+                        className="px-3 py-1.5 border border-slate-200 rounded-lg hover:bg-slate-100 font-semibold text-xs transition"
+                      >
+                        След. неделя →
+                      </button>
                     </div>
 
-                    <div className="flex items-center gap-3 text-xs sm:text-sm">
-                      <div className="bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100">
-                        <span className="text-slate-500">Занятий:</span> <strong className="text-slate-800">{stats.plannedCount}</strong>
+                    <div className="text-sm font-bold text-slate-800 text-center">
+                      {weekDays[0].getDate()} {MONTH_NAMES[weekDays[0].getMonth()]} — {weekDays[6].getDate()} {MONTH_NAMES[weekDays[6].getMonth()]} {weekDays[6].getFullYear()} г.
+                    </div>
+
+                    <div className="flex items-center justify-center gap-3 text-xs sm:text-sm">
+                      <div className="bg-slate-50 px-3 py-1 rounded-lg border border-slate-100">
+                        <span className="text-slate-500">Уроков:</span> <strong className="text-slate-800">{stats.plannedCount}</strong>
                       </div>
-                      <div className="bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-100">
+                      <div className="bg-emerald-50 px-3 py-1 rounded-lg border border-emerald-100">
                         <span className="text-emerald-700">Оплачено:</span> <strong className="text-emerald-800">{stats.earned} zł</strong>
-                      </div>
-                      <div className="bg-amber-50 px-3 py-1.5 rounded-lg border border-amber-100">
-                        <span className="text-amber-700">Ждут оплаты:</span> <strong className="text-amber-800">{stats.unpaidCount}</strong>
                       </div>
                     </div>
                   </div>
 
-                  {/* Колонки дней */}
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-7 gap-3">
-                    {DAYS.map((dayName, dayIdx) => {
+                    {weekDays.map((date, dayIdx) => {
+                      const dateStr = formatDateKey(date);
+                      const isToday = dateStr === todayStr;
                       const daySlots = workingSlots
                         .filter(s => s.day === dayIdx)
                         .sort((a, b) => a.startTime.localeCompare(b.startTime));
 
                       return (
-                        <div key={dayName} className="bg-slate-100/70 p-3 rounded-xl border border-slate-200 flex flex-col min-h-[380px]">
-                          <div className="font-bold text-xs text-slate-800 pb-2 mb-2 border-b border-slate-200 flex justify-between items-center">
-                            <span>{dayName}</span>
-                            <span className="text-[11px] bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded-full">{daySlots.length}</span>
+                        <div 
+                          key={dateStr} 
+                          className={`p-3 rounded-xl border flex flex-col min-h-[400px] transition ${
+                            isToday ? 'bg-indigo-50/50 border-indigo-300 ring-2 ring-indigo-200/50' : 'bg-slate-100/70 border-slate-200'
+                          }`}
+                        >
+                          <div className="pb-2.5 mb-2 border-b border-slate-200 flex justify-between items-center">
+                            <div>
+                              <div className={`text-xs font-bold ${isToday ? 'text-indigo-700' : 'text-slate-800'}`}>
+                                {DAY_NAMES[dayIdx]}
+                              </div>
+                              <div className="text-[11px] text-slate-500 font-medium">
+                                {date.getDate()} {MONTH_NAMES[date.getMonth()]}
+                              </div>
+                            </div>
+                            {isToday && (
+                              <span className="text-[10px] bg-indigo-600 text-white font-bold px-1.5 py-0.5 rounded">
+                                Сегодня
+                              </span>
+                            )}
                           </div>
 
                           {daySlots.length === 0 ? (
                             <div className="flex-1 flex items-center justify-center text-xs text-slate-400 italic">
-                              Свободно
+                              Выходной
                             </div>
                           ) : (
                             <div className="space-y-2 flex-1">
                               {daySlots.map(slot => {
                                 const recurring = recurringLessons.find(r => r.slotId === slot.id);
                                 const student = recurring ? students.find(s => s.id === recurring.studentId) : null;
-                                const logKey = `${weekOffset}_${slot.id}`;
+                                const logKey = `${dateStr}_${slot.id}`;
                                 const log = lessonLogs[logKey];
 
                                 const isAutoPaidByBalance = student && student.balance >= (recurring?.rate || 0);
@@ -294,19 +382,19 @@
 
                                     {!recurring ? (
                                       <button 
-                                        onClick={() => setModalSlot({ slot, recurring: null })}
+                                        onClick={() => setModalSlot({ slot, recurring: null, dateStr, dayIdx })}
                                         className="w-full py-2 border border-dashed border-slate-300 hover:border-indigo-400 hover:bg-indigo-50/30 rounded text-slate-400 hover:text-indigo-600 text-xs font-medium transition"
                                       >
                                         + Записать ученика
                                       </button>
                                     ) : (
                                       <div 
-                                        onClick={() => setModalSlot({ slot, recurring, logKey, student, log })}
+                                        onClick={() => setModalSlot({ slot, recurring, logKey, student, log, dateStr, dayIdx })}
                                         className={`p-2 rounded-lg cursor-pointer border transition ${
                                           status === 'cancelled' 
-                                            ? 'bg-rose-50/70 border-rose-200 opacity-60 text-slate-500' 
+                                            ? 'bg-rose-50 border-rose-200 opacity-60 text-slate-500' 
                                             : status === 'attended' 
-                                            ? 'bg-emerald-50/60 border-emerald-200' 
+                                            ? 'bg-emerald-50/70 border-emerald-200' 
                                             : 'bg-indigo-50/40 border-indigo-100 hover:border-indigo-300'
                                         }`}
                                       >
@@ -320,7 +408,7 @@
                                         <div className="text-[11px] text-slate-600 mt-1 flex justify-between items-center">
                                           <span>{recurring.rate} zł</span>
                                           {student?.balance > 0 && (
-                                            <span className="text-[10px] text-emerald-700 font-medium">Аванс: +{student.balance} zł</span>
+                                            <span className="text-[10px] text-emerald-700 font-semibold">Баланс: +{student.balance} zł</span>
                                           )}
                                         </div>
 
@@ -347,17 +435,31 @@
             </div>
           )}
 
+          {/* ВИД: НАСТРОЙКА ЧАСОВ */}
+          {view === 'slots_setup' && (
+            <SlotsManager 
+              workingSlots={workingSlots} 
+              onAddSlot={handleAddSlot} 
+              onDeleteSlot={handleDeleteSlot}
+              calculateEndTime={calculateEndTime}
+              onGoToCalendar={() => setView('calendar')}
+            />
+          )}
+
           {/* ВИД: УЧЕНИКИ */}
           {view === 'students' && (
             <StudentsManager 
               students={students} 
-              setStudents={setStudents} 
+              setStudents={(newStudents) => {
+                setStudents(newStudents);
+                saveToCloud({ students: newStudents });
+              }} 
               onAddPayment={handleAddPayment} 
               onDeleteStudent={handleDeleteStudent}
             />
           )}
 
-          {/* МОДАЛЬНОЕ ОКНО ЗАНЯТИЯ */}
+          {/* МОДАЛЬНОЕ ОКНО */}
           {modalSlot && (
             <LessonModal 
               data={modalSlot} 
@@ -374,7 +476,6 @@
       );
     }
 
-    // КОМПОНЕНТ РАССТАНОВКИ ВРЕМЕНИ
     function SlotsManager({ workingSlots, onAddSlot, onDeleteSlot, calculateEndTime, onGoToCalendar }) {
       const [day, setDay] = useState(0);
       const [startTime, setStartTime] = useState('14:30');
@@ -389,8 +490,8 @@
       return (
         <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm h-fit">
-            <h3 className="font-bold text-slate-900 text-base mb-1">Добавить рабочий час</h3>
-            <p className="text-xs text-slate-500 mb-4">Вводите любое точное время (например 14:30, 15:15, 17:00).</p>
+            <h3 className="font-bold text-slate-900 text-base mb-1">Добавить рабочее время</h3>
+            <p className="text-xs text-slate-500 mb-4">Любое время начала (например 14:30, 15:15).</p>
             
             <form onSubmit={handleFormSubmit} className="space-y-4">
               <div>
@@ -400,12 +501,12 @@
                   onChange={e => setDay(Number(e.target.value))}
                   className="w-full text-sm px-3 py-2 border border-slate-300 rounded-lg focus:outline-indigo-500 bg-white"
                 >
-                  {DAYS.map((d, idx) => <option key={d} value={idx}>{d}</option>)}
+                  {DAY_NAMES.map((d, idx) => <option key={d} value={idx}>{d}</option>)}
                 </select>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Время начала (часы:минуты)</label>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Время начала</label>
                 <input 
                   type="time" 
                   value={startTime} 
@@ -435,24 +536,23 @@
             </form>
           </div>
 
-          {/* Список слотов */}
           <div className="md:col-span-2 space-y-4">
             <div className="flex justify-between items-center">
-              <h3 className="font-bold text-slate-900 text-base">Ваши рабочие окна ({workingSlots.length})</h3>
+              <h3 className="font-bold text-slate-900 text-base">Активные часы ({workingSlots.length})</h3>
               {workingSlots.length > 0 && (
                 <button onClick={onGoToCalendar} className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg font-semibold transition">
-                  Перейти в календарь →
+                  Открыть календарь →
                 </button>
               )}
             </div>
 
             {workingSlots.length === 0 ? (
               <div className="bg-white p-8 rounded-xl border border-dashed border-slate-300 text-center text-slate-400 text-sm">
-                Здесь появятся часы, которые вы добавите слева
+                Вы пока не добавили ни одного рабочего часа.
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {DAYS.map((dName, dIdx) => {
+                {DAY_NAMES.map((dName, dIdx) => {
                   const daySlots = workingSlots.filter(s => s.day === dIdx).sort((a,b) => a.startTime.localeCompare(b.startTime));
                   if (daySlots.length === 0) return null;
 
@@ -485,7 +585,6 @@
       );
     }
 
-    // КОМПОНЕНТ УЧЕНИКОВ
     function StudentsManager({ students, setStudents, onAddPayment, onDeleteStudent }) {
       const [name, setName] = useState('');
       const [rate, setRate] = useState(50);
@@ -517,7 +616,7 @@
       return (
         <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm h-fit">
-            <h3 className="font-bold text-slate-900 mb-3">Добавить нового ученика</h3>
+            <h3 className="font-bold text-slate-900 mb-3">Добавить ученика</h3>
             <form onSubmit={handleAddStudent} className="space-y-3">
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1">Имя и фамилия</label>
@@ -531,7 +630,7 @@
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Ставка за 1 урок (zł)</label>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Ставка за урок (zł)</label>
                 <input 
                   type="number" 
                   value={rate} 
@@ -541,12 +640,12 @@
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Заметка / Класс</label>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Заметка</label>
                 <input 
                   type="text" 
                   value={note} 
                   onChange={e => setNote(e.target.value)} 
-                  placeholder="напр. 7 класс / Польский язык"
+                  placeholder="напр. 8 класс / подготовка"
                   className="w-full text-sm px-3 py-2 border border-slate-300 rounded-lg focus:outline-indigo-500"
                 />
               </div>
@@ -560,7 +659,7 @@
             <h3 className="font-bold text-slate-900 mb-2">Все ученики ({students.length})</h3>
             {students.length === 0 ? (
               <div className="bg-white p-8 rounded-xl border border-dashed border-slate-300 text-center text-slate-400 text-sm">
-                Учеников пока нет. Добавьте первого через форму слева.
+                Список пуст. Добавьте учеников через форму.
               </div>
             ) : (
               students.map(st => (
@@ -572,10 +671,10 @@
                     </div>
                     {st.note && <p className="text-xs text-slate-500 mt-0.5">{st.note}</p>}
                     <div className="mt-2 text-xs">
-                      Баланс / Аванс: <span className={`font-bold ${st.balance > 0 ? 'text-emerald-600 font-semibold' : st.balance < 0 ? 'text-rose-600' : 'text-slate-600'}`}>{st.balance} zł</span>
+                      Баланс: <span className={`font-bold ${st.balance > 0 ? 'text-emerald-600 font-semibold' : st.balance < 0 ? 'text-rose-600' : 'text-slate-600'}`}>{st.balance} zł</span>
                       {st.balance >= st.defaultRate && (
                         <span className="ml-2 text-[11px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-medium">
-                          Оплачено на {Math.floor(st.balance / st.defaultRate)} урок(а) вперед
+                          Оплачено на {Math.floor(st.balance / st.defaultRate)} ур. вперед
                         </span>
                       )}
                     </div>
@@ -584,10 +683,10 @@
                   <div className="flex items-center gap-2">
                     <input 
                       type="number" 
-                      placeholder="+ Внести zł" 
+                      placeholder="+ zł" 
                       value={payInputs[st.id] || ''} 
                       onChange={e => setPayInputs({ ...payInputs, [st.id]: e.target.value })}
-                      className="w-28 text-sm px-2.5 py-1.5 border border-slate-300 rounded-lg"
+                      className="w-24 text-sm px-2.5 py-1.5 border border-slate-300 rounded-lg"
                     />
                     <button 
                       onClick={() => handlePaymentSubmit(st.id)}
@@ -598,7 +697,7 @@
                     <button 
                       onClick={() => onDeleteStudent(st.id)}
                       className="p-1.5 text-rose-500 hover:text-rose-700 font-bold ml-1 text-sm"
-                      title="Удалить ученика"
+                      title="Удалить"
                     >
                       ✕
                     </button>
@@ -611,9 +710,8 @@
       );
     }
 
-    // МОДАЛЬНОЕ ОКНО
     function LessonModal({ data, onClose, students, onAssign, onUpdateStatus, onAddPayment, calculateEndTime, onOpenStudentsTab }) {
-      const { slot, recurring, logKey, student, log } = data;
+      const { slot, recurring, logKey, student, log, dateStr, dayIdx } = data;
       const [selectedStudentId, setSelectedStudentId] = useState(recurring?.studentId || '');
       const [customRate, setCustomRate] = useState(recurring?.rate || 50);
       const [paymentAddVal, setPaymentAddVal] = useState('');
@@ -631,9 +729,12 @@
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-200">
             <div className="flex justify-between items-center pb-3 border-b border-slate-100">
-              <h3 className="font-bold text-slate-900 text-base">
-                {DAYS[slot.day]}, {slot.startTime} – {calculateEndTime(slot.startTime, slot.duration)}
-              </h3>
+              <div>
+                <h3 className="font-bold text-slate-900 text-base">
+                  {DAY_NAMES[dayIdx]}, {slot.startTime} – {calculateEndTime(slot.startTime, slot.duration)}
+                </h3>
+                <p className="text-xs text-slate-500">Дата урока: {dateStr}</p>
+              </div>
               <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-lg font-bold">✕</button>
             </div>
 
@@ -641,16 +742,16 @@
               <div className="mt-4 space-y-4">
                 {students.length === 0 ? (
                   <div className="text-center py-4">
-                    <p className="text-xs text-slate-500 mb-3">У вас пока нет добавленных учеников</p>
+                    <p className="text-xs text-slate-500 mb-3">Сначала создайте хотя бы одного ученика</p>
                     <button onClick={onOpenStudentsTab} className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-semibold">
-                      + Создать первого ученика
+                      + Создать ученика
                     </button>
                   </div>
                 ) : (
                   <>
                     <p className="text-xs text-slate-600">Закрепить регулярного ученика за этим слотом:</p>
                     <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">Выберите ученика</label>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">Ученик</label>
                       <select 
                         value={selectedStudentId} 
                         onChange={e => {
@@ -666,7 +767,7 @@
                     </div>
 
                     <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">Стоимость занятия (zł)</label>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">Стоимость (zł)</label>
                       <input 
                         type="number" 
                         value={customRate} 
@@ -693,12 +794,12 @@
                     <span>{recurring.rate} zł</span>
                   </div>
                   <div className="text-xs text-slate-500 mt-1">
-                    Баланс аванса: <strong className="text-indigo-600">{student?.balance || 0} zł</strong>
+                    Аванс ученика: <strong className="text-indigo-600">{student?.balance || 0} zł</strong>
                   </div>
                 </div>
 
                 <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
-                  <label className="block text-[11px] font-bold text-emerald-800 mb-1">Внести оплату (например 100 zł):</label>
+                  <label className="block text-[11px] font-bold text-emerald-800 mb-1">Пополнить баланс (например 100 zł):</label>
                   <div className="flex gap-2">
                     <input 
                       type="number" 
@@ -717,7 +818,7 @@
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Отметка урока:</label>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Статус проведения занятия:</label>
                   <div className="grid grid-cols-3 gap-2">
                     <button 
                       onClick={() => onUpdateStatus(logKey, student?.id, recurring.rate, 'attended', isPaid ? 'paid' : 'unpaid')}
@@ -743,7 +844,7 @@
                 <div className="pt-2 border-t border-slate-100 flex justify-between">
                   <button 
                     onClick={() => {
-                      if (confirm('Освободить это время от ученика?')) {
+                      if (confirm('Освободить это время от ученика во все недели?')) {
                         onAssign(slot.id, null);
                       }
                     }}
