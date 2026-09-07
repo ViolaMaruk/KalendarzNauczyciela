@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="pl">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Календарь Репетитора</title>
+  <title>Kalendarz Korepetytora</title>
   
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -44,9 +44,9 @@
     const db = firebase.firestore();
     const docRef = db.collection('tutor_data').doc('main_schedule');
 
-    const DAY_NAMES = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье'];
-    const SHORT_DAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
-    const MONTH_NAMES = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+    const DAY_NAMES = ['Poniedziałek', 'Wtorek', 'Środa', 'Czwartek', 'Piątek', 'Sobota', 'Niedziela'];
+    const SHORT_DAYS = ['Pn', 'Wt', 'Śr', 'Czw', 'Pt', 'Sob', 'Nd'];
+    const MONTH_NAMES = ['sty', 'lut', 'mar', 'kwi', 'maj', 'cze', 'lip', 'sie', 'wrz', 'paź', 'lis', 'gru'];
 
     function getWeekDays(offset = 0) {
       const now = new Date();
@@ -72,14 +72,14 @@
 
     function getCurrentDayIndex() {
       const d = new Date().getDay();
-      return d === 0 ? 6 : d - 1; // 0 = Пн, 6 = Вс
+      return d === 0 ? 6 : d - 1;
     }
 
     function App() {
       const [view, setView] = useState('calendar');
       const [weekOffset, setWeekOffset] = useState(0);
       const [selectedMobileDay, setSelectedMobileDay] = useState(getCurrentDayIndex());
-      const [syncStatus, setSyncStatus] = useState('Подключение...');
+      const [syncStatus, setSyncStatus] = useState('Łączenie...');
 
       const weekDays = useMemo(() => getWeekDays(weekOffset), [weekOffset]);
 
@@ -98,7 +98,7 @@
             setStudents(data.students || []);
             setRecurringLessons(data.recurringLessons || []);
             setLessonLogs(data.lessonLogs || {});
-            setSyncStatus('Облако 🟢');
+            setSyncStatus('Chmura 🟢');
           } else {
             docRef.set({
               workingSlots: [],
@@ -106,21 +106,21 @@
               recurringLessons: [],
               lessonLogs: {}
             });
-            setSyncStatus('Облако 🟢');
+            setSyncStatus('Chmura 🟢');
           }
         }, (error) => {
           console.error(error);
-          setSyncStatus('Ошибка 🔴');
+          setSyncStatus('Błąd 🔴');
         });
 
         return () => unsubscribe();
       }, []);
 
       const saveToCloud = (updates) => {
-        setSyncStatus('Сохранение... ⏳');
+        setSyncStatus('Zapisywanie... ⏳');
         docRef.set(updates, { merge: true })
-          .then(() => setSyncStatus('Облако 🟢'))
-          .catch(() => setSyncStatus('Ошибка 🔴'));
+          .then(() => setSyncStatus('Chmura 🟢'))
+          .catch(() => setSyncStatus('Błąd 🔴'));
       };
 
       const handleAddSlot = (day, startTime, duration) => {
@@ -150,7 +150,7 @@
       };
 
       const handleDeleteStudent = (studentId) => {
-        if (!confirm('Удалить ученика? Занятия с ним будут освобождены.')) return;
+        if (!confirm('Czy na pewno chcesz usunąć ucznia? Jego zajęcia zostaną zwolnione.')) return;
         const updatedStudents = students.filter(s => s.id !== studentId);
         const updatedRec = recurringLessons.filter(r => r.studentId !== studentId);
         setStudents(updatedStudents);
@@ -258,7 +258,6 @@
       const stats = weekStats();
       const todayStr = formatDateKey(new Date());
 
-      // Карточка отдельного дня недели
       const renderDayColumn = (date, dayIdx, isMobile = false) => {
         const dateStr = formatDateKey(date);
         const isToday = dateStr === todayStr;
@@ -269,30 +268,30 @@
         return (
           <div 
             key={dateStr} 
-            className={`p-3.5 rounded-xl border flex flex-col min-h-[360px] transition ${
-              isToday ? 'bg-indigo-50/60 border-indigo-300 ring-2 ring-indigo-200/50' : 'bg-slate-100/70 border-slate-200'
+            className={`p-3 rounded-xl border flex flex-col min-h-[360px] transition ${
+              isToday ? 'bg-indigo-50/50 border-indigo-300 ring-2 ring-indigo-200/50' : 'bg-slate-100/70 border-slate-200'
             } ${isMobile ? 'w-full shadow-sm' : ''}`}
           >
-            <div className="pb-2.5 mb-2.5 border-b border-slate-200 flex justify-between items-center">
+            <div className="pb-2 mb-2 border-b border-slate-200 flex justify-between items-center">
               <div>
-                <div className={`text-sm font-bold ${isToday ? 'text-indigo-700' : 'text-slate-800'}`}>
+                <div className={`text-xs font-bold ${isToday ? 'text-indigo-700' : 'text-slate-800'}`}>
                   {DAY_NAMES[dayIdx]}
                 </div>
-                <div className="text-xs text-slate-500 font-medium">
+                <div className="text-[11px] text-slate-500 font-medium">
                   {date.getDate()} {MONTH_NAMES[date.getMonth()]}
                 </div>
               </div>
               {isToday && (
                 <span className="text-[10px] bg-indigo-600 text-white font-bold px-2 py-0.5 rounded-full">
-                  Сегодня
+                  Dzisiaj
                 </span>
               )}
             </div>
 
             {daySlots.length === 0 ? (
               <div className="flex-1 flex flex-col items-center justify-center text-xs text-slate-400 italic py-8">
-                <span>☕ Выходной день</span>
-                <span className="text-[11px] text-slate-300 mt-1">Нет рабочих часов</span>
+                <span>☕ Wolny dzień</span>
+                <span className="text-[10px] text-slate-300 mt-0.5">Brak godzin pracy</span>
               </div>
             ) : (
               <div className="space-y-2 flex-1">
@@ -307,23 +306,23 @@
                   const status = log?.status || 'scheduled';
 
                   return (
-                    <div key={slot.id} className="bg-white rounded-xl border border-slate-200 p-3 shadow-sm">
-                      <div className="flex items-center justify-between text-xs font-semibold text-slate-500 mb-2">
+                    <div key={slot.id} className="bg-white rounded-xl border border-slate-200 p-2.5 shadow-sm">
+                      <div className="flex items-center justify-between text-xs font-semibold text-slate-500 mb-1.5">
                         <span>⏰ {slot.startTime} – {calculateEndTime(slot.startTime, slot.duration)}</span>
-                        <span className="text-[10px] text-slate-400">{slot.duration} мин</span>
+                        <span className="text-[10px] text-slate-400">{slot.duration} min</span>
                       </div>
 
                       {!recurring ? (
                         <button 
                           onClick={() => setModalSlot({ slot, recurring: null, dateStr, dayIdx })}
-                          className="w-full py-2.5 border border-dashed border-slate-300 hover:border-indigo-400 hover:bg-indigo-50/30 rounded-lg text-slate-400 hover:text-indigo-600 text-xs font-semibold transition"
+                          className="w-full py-2 border border-dashed border-slate-300 hover:border-indigo-400 hover:bg-indigo-50/30 rounded-lg text-slate-400 hover:text-indigo-600 text-xs font-semibold transition"
                         >
-                          + Записать ученика
+                          + Zapisz ucznia
                         </button>
                       ) : (
                         <div 
                           onClick={() => setModalSlot({ slot, recurring, logKey, student, log, dateStr, dayIdx })}
-                          className={`p-2.5 rounded-lg cursor-pointer border transition active:scale-[0.99] ${
+                          className={`p-2 rounded-lg cursor-pointer border transition ${
                             status === 'cancelled' 
                               ? 'bg-rose-50 border-rose-200 opacity-60 text-slate-500' 
                               : status === 'attended' 
@@ -332,26 +331,25 @@
                           }`}
                         >
                           <div className="flex justify-between items-start gap-1">
-                            <span className="font-bold text-sm text-slate-900 truncate">{student?.name || 'Ученик удален'}</span>
+                            <span className="font-bold text-xs text-slate-900 truncate">{student?.name || 'Uczeń usunięty'}</span>
                             <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold shrink-0 ${isPaid ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
-                              {isPaid ? 'Оплачено' : 'Долг'}
+                              {isPaid ? 'Opłacone' : 'Do zapłaty'}
                             </span>
                           </div>
 
                           <div className="text-xs text-slate-600 mt-1 flex justify-between items-center">
                             <span className="font-semibold">{recurring.rate} zł</span>
                             {student?.balance > 0 && (
-                              <span className="text-[10px] text-emerald-700 font-semibold">Аванс: +{student.balance} zł</span>
+                              <span className="text-[10px] text-emerald-700 font-semibold">Zaliczka: +{student.balance} zł</span>
                             )}
                           </div>
 
-                          <div className="text-[11px] text-slate-500 pt-1.5 mt-1.5 border-t border-slate-200/60 flex justify-between items-center">
+                          <div className="text-[10px] text-slate-500 pt-1 mt-1 border-t border-slate-200/60 flex justify-between items-center">
                             <span>
-                              {status === 'scheduled' && '⏳ Запланирован'}
-                              {status === 'attended' && '✅ Проведен'}
-                              {status === 'cancelled' && '❌ Отменен'}
+                              {status === 'scheduled' && '⏳ Zaplanowane'}
+                              {status === 'attended' && '✅ Odbyło się'}
+                              {status === 'cancelled' && '❌ Odwołane'}
                             </span>
-                            <span className="text-indigo-600 font-semibold text-[10px]">Изменить →</span>
                           </div>
                         </div>
                       )}
@@ -365,70 +363,67 @@
       };
 
       return (
-        <div className="max-w-7xl mx-auto p-3 sm:p-6 pb-16">
-          {/* Верхний бар */}
-          <header className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-4 border-b border-slate-200">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="flex items-center gap-2">
-                  <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">📅 TutorFlow</h1>
-                  <span className="text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full">
-                    {syncStatus}
-                  </span>
-                </div>
-                <p className="text-xs text-slate-500 mt-0.5 hidden sm:block">
-                  Сегодня: <strong className="text-slate-700">{new Date().toLocaleDateString('ru-RU', { weekday: 'short', day: 'numeric', month: 'short' })}</strong>
-                </p>
-              </div>
+        <div className="max-w-7xl mx-auto p-4 sm:p-6 pb-16">
+          {/* Górny pasek (Header) */}
+          <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-200">
+            <div className="flex items-center gap-3">
+              <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight whitespace-nowrap">
+                📅 TutorFlow
+              </h1>
+              <span className="text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-0.5 rounded-full whitespace-nowrap">
+                {syncStatus}
+              </span>
+              <span className="text-xs text-slate-500 hidden lg:inline-block border-l border-slate-200 pl-3 capitalize">
+                {new Date().toLocaleDateString('pl-PL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+              </span>
             </div>
 
-            {/* Навигация по разделам */}
-            <div className="grid grid-cols-3 gap-1.5 sm:flex sm:items-center">
+            {/* Przyciski trybów */}
+            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar shrink-0">
               <button 
                 onClick={() => setView('calendar')} 
-                className={`py-2 px-3 text-center rounded-xl text-xs font-bold transition ${view === 'calendar' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'}`}
+                className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold whitespace-nowrap transition ${view === 'calendar' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'}`}
               >
-                1. Расписание
+                1. Grafik
               </button>
               <button 
                 onClick={() => setView('slots_setup')} 
-                className={`py-2 px-3 text-center rounded-xl text-xs font-bold transition ${view === 'slots_setup' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'}`}
+                className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold whitespace-nowrap transition ${view === 'slots_setup' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'}`}
               >
-                ⚙️ Часы ({workingSlots.length})
+                ⚙️ Godziny pracy ({workingSlots.length})
               </button>
               <button 
                 onClick={() => setView('students')} 
-                className={`py-2 px-3 text-center rounded-xl text-xs font-bold transition ${view === 'students' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'}`}
+                className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold whitespace-nowrap transition ${view === 'students' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'}`}
               >
-                👥 Ученики ({students.length})
+                👥 Uczniowie ({students.length})
               </button>
             </div>
           </header>
 
-          {/* ВИД: КАЛЕНДАРЬ */}
+          {/* WIDOK 1: KALENDARZ */}
           {view === 'calendar' && (
-            <div className="mt-4 sm:mt-6">
+            <div className="mt-5">
               {workingSlots.length === 0 ? (
-                <div className="bg-amber-50 border border-amber-200 p-6 rounded-2xl text-center">
-                  <h3 className="font-bold text-amber-900 text-base mb-1">Часы работы не заданы</h3>
-                  <p className="text-xs text-amber-700 mb-4">Укажите время уроков (например 14:30), чтобы календарь заполнился.</p>
-                  <button onClick={() => setView('slots_setup')} className="px-4 py-2.5 bg-indigo-600 text-white font-bold text-xs rounded-xl hover:bg-indigo-700 shadow-sm">
-                    Настроить часы работы →
+                <div className="bg-amber-50 border border-amber-200 p-8 rounded-2xl text-center max-w-lg mx-auto">
+                  <h3 className="font-bold text-amber-900 text-base mb-1">Godziny pracy nie zostały ustawione</h3>
+                  <p className="text-xs sm:text-sm text-amber-700 mb-4">Dodaj godziny, w których możesz uczyć (np. 14:30), aby kalendarz się zapełnił.</p>
+                  <button onClick={() => setView('slots_setup')} className="px-5 py-2.5 bg-indigo-600 text-white font-bold text-xs sm:text-sm rounded-xl hover:bg-indigo-700 shadow-sm">
+                    Ustaw godziny pracy →
                   </button>
                 </div>
               ) : (
                 <>
-                  {/* Переключение недель и сводка финансов */}
-                  <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm mb-4">
-                    <div className="flex items-center justify-between gap-2 mb-3">
+                  {/* Pasek tygodnia + Podsumowanie finansowe */}
+                  <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200 shadow-sm mb-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    {/* Zmiana tygodnia */}
+                    <div className="flex items-center gap-2 shrink-0">
                       <button 
                         onClick={() => setWeekOffset(prev => prev - 1)} 
-                        className="p-2 border border-slate-200 rounded-xl hover:bg-slate-100 font-bold text-xs transition"
-                        title="Предыдущая неделя"
+                        className="px-3 py-1.5 border border-slate-200 rounded-xl hover:bg-slate-100 font-bold text-xs transition"
                       >
-                        ← Пред.
+                        ← Poprz.
                       </button>
-                      
                       <button 
                         onClick={() => {
                           setWeekOffset(0);
@@ -436,39 +431,36 @@
                         }} 
                         className={`px-3 py-1.5 border rounded-xl text-xs font-bold transition ${weekOffset === 0 ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'hover:bg-slate-100 border-slate-200'}`}
                       >
-                        Текущая (Сегодня)
+                        Dzisiaj
                       </button>
-
                       <button 
                         onClick={() => setWeekOffset(prev => prev + 1)} 
-                        className="p-2 border border-slate-200 rounded-xl hover:bg-slate-100 font-bold text-xs transition"
-                        title="Следующая неделя"
+                        className="px-3 py-1.5 border border-slate-200 rounded-xl hover:bg-slate-100 font-bold text-xs transition"
                       >
-                        След. →
+                        Nast. →
                       </button>
+                      <span className="text-xs font-bold text-slate-800 ml-2 whitespace-nowrap">
+                        {weekDays[0].getDate()} {MONTH_NAMES[weekDays[0].getMonth()]} — {weekDays[6].getDate()} {MONTH_NAMES[weekDays[6].getMonth()]} {weekDays[6].getFullYear()} r.
+                      </span>
                     </div>
 
-                    <div className="text-center text-xs font-bold text-slate-700 mb-3">
-                      {weekDays[0].getDate()} {MONTH_NAMES[weekDays[0].getMonth()]} — {weekDays[6].getDate()} {MONTH_NAMES[weekDays[6].getMonth()]} {weekDays[6].getFullYear()} г.
-                    </div>
-
-                    {/* Финансовый прогноз */}
-                    <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center justify-center gap-2 text-xs">
-                      <div className="bg-indigo-50/90 p-2 sm:px-3 sm:py-1.5 rounded-xl border border-indigo-100 text-center sm:text-left">
-                        <span className="text-indigo-600 block sm:inline text-[11px]">План:</span> <strong className="text-indigo-950 font-bold text-sm">{stats.expectedTotal} zł</strong>
+                    {/* Bloki finansowe */}
+                    <div className="flex flex-wrap items-center gap-2 text-xs">
+                      <div className="bg-indigo-50 px-3 py-1.5 rounded-xl border border-indigo-100 whitespace-nowrap">
+                        <span className="text-indigo-600 font-medium">Plan:</span> <strong className="text-indigo-950 font-bold text-sm ml-1">{stats.expectedTotal} zł</strong>
                       </div>
-                      <div className="bg-emerald-50 p-2 sm:px-3 sm:py-1.5 rounded-xl border border-emerald-100 text-center sm:text-left">
-                        <span className="text-emerald-700 block sm:inline text-[11px]">Оплачено:</span> <strong className="text-emerald-800 font-bold text-sm">{stats.earnedPaid} zł</strong>
+                      <div className="bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-100 whitespace-nowrap">
+                        <span className="text-emerald-700 font-medium">Opłacone:</span> <strong className="text-emerald-800 font-bold text-sm ml-1">{stats.earnedPaid} zł</strong>
                       </div>
                       {stats.pendingToCollect > 0 && (
-                        <div className="col-span-2 sm:col-span-1 bg-amber-50 p-2 sm:px-3 sm:py-1.5 rounded-xl border border-amber-100 text-center sm:text-left">
-                          <span className="text-amber-700 text-[11px]">Осталось получить:</span> <strong className="text-amber-800 font-bold text-sm ml-1">{stats.pendingToCollect} zł</strong>
+                        <div className="bg-amber-50 px-3 py-1.5 rounded-xl border border-amber-100 whitespace-nowrap">
+                          <span className="text-amber-700 font-medium">Do pobrania:</span> <strong className="text-amber-800 font-bold text-sm ml-1">{stats.pendingToCollect} zł</strong>
                         </div>
                       )}
                     </div>
                   </div>
 
-                  {/* МОБИЛЬНЫЙ ВИД: Горизонтальный переключатель дней (табы) */}
+                  {/* WIDOK MOBILNY: Zakładki dni tygodnia */}
                   <div className="block lg:hidden mb-4">
                     <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-1">
                       {weekDays.map((date, idx) => {
@@ -481,7 +473,7 @@
                           <button
                             key={idx}
                             onClick={() => setSelectedMobileDay(idx)}
-                            className={`flex-1 min-w-[50px] py-2 px-1 rounded-xl text-center border flex flex-col items-center transition ${
+                            className={`flex-1 min-w-[48px] py-2 px-1 rounded-xl text-center border flex flex-col items-center transition ${
                               isSelected 
                                 ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm' 
                                 : isToday 
@@ -489,7 +481,7 @@
                                 : 'bg-white border-slate-200 text-slate-700'
                             }`}
                           >
-                            <span className="text-[10px] uppercase font-bold tracking-tight">
+                            <span className="text-[10px] uppercase font-bold">
                               {SHORT_DAYS[idx]}
                             </span>
                             <span className="text-sm font-extrabold mt-0.5">
@@ -497,7 +489,7 @@
                             </span>
                             {slotsCount > 0 && (
                               <span className={`text-[9px] mt-1 px-1 rounded-full font-semibold ${isSelected ? 'bg-indigo-500 text-white' : 'bg-slate-100 text-slate-600'}`}>
-                                {slotsCount} ур.
+                                {slotsCount}
                               </span>
                             )}
                           </button>
@@ -505,13 +497,12 @@
                       })}
                     </div>
 
-                    {/* Показ выбранного дня на мобильном */}
                     <div className="mt-3">
                       {renderDayColumn(weekDays[selectedMobileDay], selectedMobileDay, true)}
                     </div>
                   </div>
 
-                  {/* ДЕСКТОПНЫЙ ВИД: Полная сетка на 7 колонок */}
+                  {/* WIDOK KOMPUTEROWY: Siatka na 7 kolumn */}
                   <div className="hidden lg:grid lg:grid-cols-7 gap-3">
                     {weekDays.map((date, dayIdx) => renderDayColumn(date, dayIdx, false))}
                   </div>
@@ -520,7 +511,7 @@
             </div>
           )}
 
-          {/* ВИД: НАСТРОЙКА ЧАСОВ */}
+          {/* WIDOK 2: USTAWIENIA GODZIN PRACY */}
           {view === 'slots_setup' && (
             <SlotsManager 
               workingSlots={workingSlots} 
@@ -531,7 +522,7 @@
             />
           )}
 
-          {/* ВИД: УЧЕНИКИ */}
+          {/* WIDOK 3: UCZNIOWIE */}
           {view === 'students' && (
             <StudentsManager 
               students={students} 
@@ -545,7 +536,7 @@
             />
           )}
 
-          {/* МОДАЛЬНОЕ ОКНО УРОКА */}
+          {/* OKNO MODALNE LEKCJI */}
           {modalSlot && (
             <LessonModal 
               data={modalSlot} 
@@ -574,14 +565,14 @@
       };
 
       return (
-        <div className="mt-4 sm:mt-6 grid grid-cols-1 md:grid-cols-3 gap-5">
+        <div className="mt-5 grid grid-cols-1 md:grid-cols-3 gap-5">
           <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm h-fit">
-            <h3 className="font-bold text-slate-900 text-base mb-1">Добавить рабочее время</h3>
-            <p className="text-xs text-slate-500 mb-4">Любое точное время (напр. 14:30, 15:15).</p>
+            <h3 className="font-bold text-slate-900 text-base mb-1">Dodaj godziny pracy</h3>
+            <p className="text-xs text-slate-500 mb-4">Wpisz dowolną godzinę (np. 14:30, 15:15).</p>
             
             <form onSubmit={handleFormSubmit} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">День недели</label>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Dzień tygodnia</label>
                 <select 
                   value={day} 
                   onChange={e => setDay(Number(e.target.value))}
@@ -592,7 +583,7 @@
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Время начала</label>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Godzina rozpoczęcia</label>
                 <input 
                   type="time" 
                   value={startTime} 
@@ -603,38 +594,38 @@
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Длительность</label>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Czas trwania</label>
                 <select 
                   value={duration} 
                   onChange={e => setDuration(Number(e.target.value))}
                   className="w-full text-sm px-3 py-2 border border-slate-300 rounded-xl focus:outline-indigo-500 bg-white"
                 >
-                  <option value={45}>45 минут</option>
-                  <option value={60}>60 минут (1 час)</option>
-                  <option value={90}>90 минут (1.5 часа)</option>
-                  <option value={120}>120 минут (2 часа)</option>
+                  <option value={45}>45 minut</option>
+                  <option value={60}>60 minut (1 godz.)</option>
+                  <option value={90}>90 minut (1.5 godz.)</option>
+                  <option value={120}>120 minut (2 godz.)</option>
                 </select>
               </div>
 
-              <button type="submit" className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold transition shadow-sm">
-                + Добавить слот
+              <button type="submit" className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold transition shadow-sm">
+                + Dodaj termin do grafiku
               </button>
             </form>
           </div>
 
           <div className="md:col-span-2 space-y-4">
             <div className="flex justify-between items-center">
-              <h3 className="font-bold text-slate-900 text-base">Активные часы ({workingSlots.length})</h3>
+              <h3 className="font-bold text-slate-900 text-base">Aktywne terminy ({workingSlots.length})</h3>
               {workingSlots.length > 0 && (
-                <button onClick={onGoToCalendar} className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-xl font-bold transition">
-                  Открыть календарь →
+                <button onClick={onGoToCalendar} className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-1.5 rounded-xl font-bold transition">
+                  Otwórz kalendarz →
                 </button>
               )}
             </div>
 
             {workingSlots.length === 0 ? (
               <div className="bg-white p-8 rounded-2xl border border-dashed border-slate-300 text-center text-slate-400 text-xs sm:text-sm">
-                Здесь появятся ваши часы работы
+                Tutaj pojawią się Twoje godziny pracy
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -649,11 +640,12 @@
                         {daySlots.map(s => (
                           <div key={s.id} className="flex justify-between items-center text-xs bg-slate-50 p-2.5 rounded-xl border border-slate-100">
                             <span className="font-semibold text-slate-700">
-                              ⏰ {s.startTime} – {calculateEndTime(s.startTime, s.duration)} <span className="text-slate-400 font-normal">({s.duration}м)</span>
+                              ⏰ {s.startTime} – {calculateEndTime(s.startTime, s.duration)} <span className="text-slate-400 font-normal">({s.duration} min)</span>
                             </span>
                             <button 
                               onClick={() => onDeleteSlot(s.id)}
                               className="text-rose-500 hover:text-rose-700 font-bold px-2 py-1 text-sm"
+                              title="Usuń termin"
                             >
                               ✕
                             </button>
@@ -707,23 +699,23 @@
       };
 
       return (
-        <div className="mt-4 sm:mt-6 grid grid-cols-1 md:grid-cols-3 gap-5">
+        <div className="mt-5 grid grid-cols-1 md:grid-cols-3 gap-5">
           <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm h-fit">
-            <h3 className="font-bold text-slate-900 mb-3">Новый ученик</h3>
+            <h3 className="font-bold text-slate-900 mb-3">Nowy uczeń</h3>
             <form onSubmit={handleAddStudent} className="space-y-3">
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Имя и фамилия</label>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Imię i nazwisko</label>
                 <input 
                   type="text" 
                   value={name} 
                   onChange={e => setName(e.target.value)} 
-                  placeholder="Имя Фамилия"
+                  placeholder="np. Anna Nowak"
                   className="w-full text-sm px-3 py-2 border border-slate-300 rounded-xl focus:outline-indigo-500"
                   required
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Ставка за 1 урок (zł)</label>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Cena za lekcję (zł)</label>
                 <input 
                   type="number" 
                   value={rate} 
@@ -733,26 +725,26 @@
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Заметка</label>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Notatka / Klasa</label>
                 <input 
                   type="text" 
                   value={note} 
                   onChange={e => setNote(e.target.value)} 
-                  placeholder="Класс / Цель"
+                  placeholder="np. klasa 8 / egzamin"
                   className="w-full text-sm px-3 py-2 border border-slate-300 rounded-xl focus:outline-indigo-500"
                 />
               </div>
-              <button type="submit" className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold transition shadow-sm">
-                + Добавить ученика
+              <button type="submit" className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold transition shadow-sm">
+                + Dodaj ucznia
               </button>
             </form>
           </div>
 
           <div className="md:col-span-2 space-y-3">
-            <h3 className="font-bold text-slate-900 mb-2">Все ученики ({students.length})</h3>
+            <h3 className="font-bold text-slate-900 mb-2">Wszyscy uczniowie ({students.length})</h3>
             {students.length === 0 ? (
               <div className="bg-white p-8 rounded-2xl border border-dashed border-slate-300 text-center text-slate-400 text-xs sm:text-sm">
-                Список учеников пуст
+                Lista uczniów jest pusta. Dodaj pierwszego formularzem po lewej stronie.
               </div>
             ) : (
               students.map(st => (
@@ -761,15 +753,15 @@
                     <div className="flex items-center gap-2">
                       <h4 className="font-bold text-slate-900">{st.name}</h4>
                       <span className="text-xs bg-indigo-50 text-indigo-700 font-semibold px-2 py-0.5 rounded-lg">
-                        {st.defaultRate} zł
+                        {st.defaultRate} zł/lekcja
                       </span>
                     </div>
                     {st.note && <p className="text-xs text-slate-500 mt-1">{st.note}</p>}
                     <div className="mt-1.5 text-xs">
-                      Баланс: <span className={`font-bold ${st.balance > 0 ? 'text-emerald-600' : st.balance < 0 ? 'text-rose-600' : 'text-slate-600'}`}>{st.balance} zł</span>
+                      Saldo / Zaliczka: <span className={`font-bold ${st.balance > 0 ? 'text-emerald-600' : st.balance < 0 ? 'text-rose-600' : 'text-slate-600'}`}>{st.balance} zł</span>
                       {st.balance >= st.defaultRate && (
                         <span className="ml-2 text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-medium">
-                          +{Math.floor(st.balance / st.defaultRate)} ур. оплачено
+                          +{Math.floor(st.balance / st.defaultRate)} lekcji opłaconych z góry
                         </span>
                       )}
                     </div>
@@ -787,12 +779,13 @@
                       onClick={() => handlePaymentSubmit(st.id)}
                       className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition"
                     >
-                      Внести
+                      Wpłać
                     </button>
                     
                     <button 
                       onClick={() => setEditingStudent({ ...st })}
                       className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition"
+                      title="Edytuj ucznia"
                     >
                       ✏️
                     </button>
@@ -800,6 +793,7 @@
                     <button 
                       onClick={() => onDeleteStudent(st.id)}
                       className="p-1.5 text-rose-500 hover:text-rose-700 font-bold ml-1 text-sm"
+                      title="Usuń"
                     >
                       ✕
                     </button>
@@ -809,17 +803,18 @@
             )}
           </div>
 
+          {/* Modal edycji ucznia */}
           {editingStudent && (
             <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
               <div className="bg-white rounded-2xl max-w-sm w-full p-5 shadow-xl border border-slate-200">
                 <div className="flex justify-between items-center pb-3 border-b border-slate-100 mb-3">
-                  <h3 className="font-bold text-slate-900 text-base">Редактировать ученика</h3>
+                  <h3 className="font-bold text-slate-900 text-base">Edycja danych ucznia</h3>
                   <button onClick={() => setEditingStudent(null)} className="text-slate-400 hover:text-slate-600 text-lg font-bold">✕</button>
                 </div>
 
                 <form onSubmit={handleSaveEdit} className="space-y-3">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1">Имя</label>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Imię i nazwisko</label>
                     <input 
                       type="text" 
                       value={editingStudent.name} 
@@ -829,7 +824,7 @@
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1">Ставка за урок (zł)</label>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Stawka za lekcję (zł)</label>
                     <input 
                       type="number" 
                       value={editingStudent.defaultRate} 
@@ -839,7 +834,7 @@
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1">Баланс / Предоплата (zł)</label>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Saldo / Nadpłata (zł)</label>
                     <input 
                       type="number" 
                       value={editingStudent.balance} 
@@ -849,7 +844,7 @@
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1">Заметка</label>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Notatka</label>
                     <input 
                       type="text" 
                       value={editingStudent.note || ''} 
@@ -864,13 +859,13 @@
                       onClick={() => setEditingStudent(null)}
                       className="w-1/2 py-2.5 bg-slate-100 text-slate-700 text-xs font-bold rounded-xl"
                     >
-                      Отмена
+                      Anuluj
                     </button>
                     <button 
                       type="submit" 
                       className="w-1/2 py-2.5 bg-indigo-600 text-white text-xs font-bold rounded-xl shadow-sm"
                     >
-                      Сохранить
+                      Zapisz
                     </button>
                   </div>
                 </form>
@@ -904,7 +899,7 @@
                 <h3 className="font-bold text-slate-900 text-base">
                   {DAY_NAMES[dayIdx]}, {slot.startTime} – {calculateEndTime(slot.startTime, slot.duration)}
                 </h3>
-                <p className="text-xs text-slate-500">Дата: {dateStr}</p>
+                <p className="text-xs text-slate-500">Data lekcji: {dateStr}</p>
               </div>
               <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-xl font-bold p-1">✕</button>
             </div>
@@ -913,16 +908,16 @@
               <div className="mt-4 space-y-4">
                 {students.length === 0 ? (
                   <div className="text-center py-4">
-                    <p className="text-xs text-slate-500 mb-3">У вас пока нет учеников</p>
+                    <p className="text-xs text-slate-500 mb-3">Nie masz jeszcze dodanych uczniów</p>
                     <button onClick={onOpenStudentsTab} className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold">
-                      + Создать ученика
+                      + Dodaj ucznia
                     </button>
                   </div>
                 ) : (
                   <>
-                    <p className="text-xs text-slate-600 font-medium">Закрепить регулярного ученика за этим слотом:</p>
+                    <p className="text-xs text-slate-600 font-medium">Przypisz stałego ucznia do tego terminu co tydzień:</p>
                     <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">Ученик</label>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">Uczeń</label>
                       <select 
                         value={selectedStudentId} 
                         onChange={e => {
@@ -932,13 +927,13 @@
                         }}
                         className="w-full text-sm px-3 py-2 border border-slate-300 rounded-xl bg-white"
                       >
-                        <option value="">-- Выбрать из списка --</option>
+                        <option value="">-- Wybierz z listy --</option>
                         {students.map(s => <option key={s.id} value={s.id}>{s.name} ({s.defaultRate} zł)</option>)}
                       </select>
                     </div>
 
                     <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">Стоимость (zł)</label>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">Stawka za lekcję (zł)</label>
                       <input 
                         type="number" 
                         value={customRate} 
@@ -950,9 +945,9 @@
                     <button 
                       onClick={() => onAssign(slot.id, selectedStudentId, customRate)}
                       disabled={!selectedStudentId}
-                      className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 text-white rounded-xl text-sm font-bold transition"
+                      className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 text-white rounded-xl text-sm font-bold transition"
                     >
-                      Закрепить еженедельно
+                      Zapisz cotygodniowo
                     </button>
                   </>
                 )}
@@ -965,16 +960,16 @@
                     <span>{recurring.rate} zł</span>
                   </div>
                   <div className="text-xs text-slate-500 mt-1">
-                    Аванс ученика: <strong className="text-indigo-600">{student?.balance || 0} zł</strong>
+                    Środki na koncie / Nadpłata: <strong className="text-indigo-600">{student?.balance || 0} zł</strong>
                   </div>
                 </div>
 
                 <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl">
-                  <label className="block text-[11px] font-bold text-emerald-800 mb-1">Пополнить баланс (например 100 zł):</label>
+                  <label className="block text-[11px] font-bold text-emerald-800 mb-1">Wpłata (np. 100 zł za 2 lekcje):</label>
                   <div className="flex gap-2">
                     <input 
                       type="number" 
-                      placeholder="Сумма zł" 
+                      placeholder="Kwota w zł" 
                       value={paymentAddVal} 
                       onChange={e => setPaymentAddVal(e.target.value)}
                       className="w-full text-xs px-3 py-2 border border-emerald-300 rounded-lg bg-white"
@@ -983,31 +978,31 @@
                       onClick={handleAddDeposit}
                       className="px-4 py-2 bg-emerald-600 text-white text-xs font-bold rounded-lg hover:bg-emerald-700"
                     >
-                      Внести
+                      Wpłać
                     </button>
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Отметка о проведении:</label>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Status lekcji:</label>
                   <div className="grid grid-cols-3 gap-2">
                     <button 
                       onClick={() => onUpdateStatus(logKey, student?.id, recurring.rate, 'attended', isPaid ? 'paid' : 'unpaid')}
                       className={`py-2 px-1 text-xs font-bold rounded-xl border transition ${currentStatus === 'attended' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white border-slate-200 hover:bg-slate-50'}`}
                     >
-                      ✅ Был
+                      ✅ Był(a)
                     </button>
                     <button 
                       onClick={() => onUpdateStatus(logKey, student?.id, recurring.rate, 'scheduled', isPaid ? 'paid' : 'unpaid')}
                       className={`py-2 px-1 text-xs font-bold rounded-xl border transition ${currentStatus === 'scheduled' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white border-slate-200 hover:bg-slate-50'}`}
                     >
-                      ⏳ План
+                      ⏳ Plan
                     </button>
                     <button 
                       onClick={() => onUpdateStatus(logKey, student?.id, recurring.rate, 'cancelled', 'unpaid')}
                       className={`py-2 px-1 text-xs font-bold rounded-xl border transition ${currentStatus === 'cancelled' ? 'bg-rose-600 text-white border-rose-600' : 'bg-white border-slate-200 hover:bg-slate-50'}`}
                     >
-                      ❌ Отмена
+                      ❌ Odwołane
                     </button>
                   </div>
                 </div>
@@ -1015,16 +1010,16 @@
                 <div className="pt-3 border-t border-slate-100 flex justify-between items-center">
                   <button 
                     onClick={() => {
-                      if (confirm('Освободить это время от ученика во все недели?')) {
+                      if (confirm('Czy chcesz zwolnić ten termin we wszystkich tygodniach?')) {
                         onAssign(slot.id, null);
                       }
                     }}
                     className="text-xs text-rose-600 hover:underline"
                   >
-                    Освободить слот
+                    Zwolnij termin
                   </button>
                   <button onClick={onClose} className="px-5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl">
-                    Закрыть
+                    Zamknij
                   </button>
                 </div>
               </div>
