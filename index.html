@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Kalendarz Korepetytora</title>
+  <title>TutorFlow — Kalendarz Korepetytora</title>
   
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -26,7 +26,7 @@
   <div id="root"></div>
 
   <script type="text/babel">
-    const { useState, useEffect, useMemo } = React;
+    const { useState, useEffect, useMemo, useRef } = React;
 
     const firebaseConfig = {
       apiKey: "AIzaSyBsBQ9k2NT2QtMaiPgwxiXWs8emABm8GzA",
@@ -44,9 +44,166 @@
     const db = firebase.firestore();
     const docRef = db.collection('tutor_data').doc('main_schedule');
 
-    const DAY_NAMES = ['Poniedziałek', 'Wtorek', 'Środa', 'Czwartek', 'Piątek', 'Sobota', 'Niedziela'];
-    const SHORT_DAYS = ['PN', 'WT', 'ŚR', 'CZW', 'PT', 'SOB', 'ND'];
-    const MONTH_NAMES = ['sty', 'lut', 'mar', 'kwi', 'maj', 'cze', 'lip', 'sie', 'wrz', 'paź', 'lis', 'gru'];
+    const I18N = {
+      pl: {
+        days: ['Poniedziałek', 'Wtorek', 'Środa', 'Czwartek', 'Piątek', 'Sobota', 'Niedziela'],
+        shortDays: ['PN', 'WT', 'ŚR', 'CZW', 'PT', 'SOB', 'ND'],
+        months: ['sty', 'lut', 'mar', 'kwi', 'maj', 'cze', 'lip', 'sie', 'wrz', 'paź', 'lis', 'gru'],
+        today: 'Dzisiaj',
+        currentWeek: 'Bieżący tydzień',
+        backToCurrentWeek: 'Wróć do bieżącego tygodnia',
+        prevWeek: 'Poprzedni tydzień',
+        nextWeek: 'Następny tydzień',
+        plan: 'Plan',
+        paid: 'Opłacone',
+        toCollect: 'Do zapłaty',
+        tabSchedule: '1. Grafik',
+        tabSlots: '⚙️ Godziny',
+        tabStudents: '👥 Uczniowie',
+        noSlotsTitle: 'Godziny pracy nie zostały ustawione',
+        noSlotsDesc: 'Dodaj godziny, w których możesz uczyć (np. 14:30), aby kalendarz się zapełnił.',
+        setSlotsBtn: 'Ustaw godziny pracy →',
+        freeDay: '☕ Wolny dzień',
+        noWorkingHours: 'Brak godzin pracy',
+        min: 'min',
+        bookStudent: '+ Zapisz ucznia',
+        surcharge: 'Dopłata:',
+        cost: 'Koszt:',
+        prepayment: 'Zaliczka:',
+        statusScheduled: '⏳ Zaplanowane',
+        statusAttended: '✅ Odbyło się',
+        statusCancelled: '❌ Odwołane',
+        studentDeleted: 'Uczeń usunięty',
+        addSlotsTitle: 'Dodaj godziny pracy',
+        addSlotsDesc: 'Wpisz dowolną godzinę (np. 14:30, 15:15).',
+        dayOfWeek: 'Dzień tygodnia',
+        startTime: 'Godzina rozpoczęcia',
+        duration: 'Czas trwania',
+        addSlotBtn: '+ Dodaj termin do grafiku',
+        activeSlotsTitle: 'Aktywne terminy',
+        openCalendarBtn: 'Otwórz kalendarz →',
+        emptySlotsList: 'Tutaj pojawią się Twoje godziny pracy',
+        newStudentTitle: 'Nowy uczeń',
+        studentNameLabel: 'Imię i nazwisko',
+        namePlaceholder: 'np. Anna Nowak',
+        rateLabel: 'Cena za lekcję (zł)',
+        noteLabel: 'Notatka / Klasa',
+        notePlaceholder: 'np. klasa 8 / egzamin',
+        addStudentBtn: '+ Dodaj ucznia',
+        allStudentsTitle: 'Wszyscy uczniowie',
+        emptyStudentsList: 'Lista uczniów jest pusta. Dodaj pierwszego formularzem po lewej stronie.',
+        ratePerLesson: 'zł/lekcja',
+        balanceLabel: 'Saldo / Zaliczka:',
+        prepaidLessonsCount: 'lekcji opłaconych z góry',
+        depositBtn: 'Wpłać',
+        editStudentTitle: 'Edycja danych ucznia',
+        balanceEditLabel: 'Saldo / Nadpłata (zł)',
+        cancelBtn: 'Anuluj',
+        saveBtn: 'Zapisz',
+        deleteStudentConfirm: 'Czy na pewno chcesz usunąć ucznia? Jego zajęcia zostaną zwolnione.',
+        freeSlotConfirm: 'Czy chcesz zwolnić ten termin we wszystkich tygodniach?',
+        noStudentsYet: 'Nie masz jeszcze dodanych uczniów',
+        createStudentFirst: '+ Dodaj ucznia',
+        assignStudentDesc: 'Przypisz stałego ucznia do tego terminu co tydzień:',
+        selectStudentPlaceholder: '-- Wybierz z listy --',
+        saveWeeklyBtn: 'Zapisz cotygodniowo',
+        studentDepositFormLabel: 'Wpłać na konto ucznia (np. 100 zł):',
+        lessonStatusLabel: 'Status lekcji:',
+        btnAttended: '✅ Był(a)',
+        btnScheduled: '⏳ Plan',
+        btnCancelled: '❌ Odwołane',
+        freeSlotBtn: 'Zwolnij termin',
+        closeBtn: 'Zamknij',
+        amountPlaceholder: 'Kwota w zł',
+        lessonDate: 'Data lekcji:',
+        toPayForThisLesson: 'Do dopłacenia za tę lekcję:',
+        cloudOk: 'Chmura 🟢',
+        cloudSaving: 'Zapis... ⏳',
+        cloudError: 'Błąd 🔴',
+        connecting: 'Łączenie...',
+        backupBtn: '💾 Kopia',
+        restoreBtn: '📂 Wczytaj'
+      },
+      ru: {
+        days: ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье'],
+        shortDays: ['ПН', 'ВТ', 'СР', 'ЧТ', 'ПТ', 'СБ', 'ВС'],
+        months: ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'],
+        today: 'Сегодня',
+        currentWeek: 'Текущая неделя',
+        backToCurrentWeek: 'Вернуться к текущей неделе',
+        prevWeek: 'Предыдущая неделя',
+        nextWeek: 'Следующая неделя',
+        plan: 'План',
+        paid: 'Оплачено',
+        toCollect: 'К оплате',
+        tabSchedule: '1. Grafik',
+        tabSlots: '⚙️ Godziny',
+        tabStudents: '👥 Uczniowie',
+        noSlotsTitle: 'Часы работы не заданы',
+        noSlotsDesc: 'Добавьте рабочие часы (напр. 14:30), чтобы календарь заполнился слотами.',
+        setSlotsBtn: 'Настроить часы работы →',
+        freeDay: '☕ Выходной день',
+        noWorkingHours: 'Нет рабочих часов',
+        min: 'мин',
+        bookStudent: '+ Записать ученика',
+        surcharge: 'Доплата:',
+        cost: 'Стоимость:',
+        prepayment: 'Аванс:',
+        statusScheduled: '⏳ Запланирован',
+        statusAttended: '✅ Проведен',
+        statusCancelled: '❌ Отменен',
+        studentDeleted: 'Ученик удален',
+        addSlotsTitle: 'Добавить рабочее время',
+        addSlotsDesc: 'Вводите любое точное время (напр. 14:30, 15:15).',
+        dayOfWeek: 'День недели',
+        startTime: 'Время начала',
+        duration: 'Длительность',
+        addSlotBtn: '+ Добавить слот в расписание',
+        activeSlotsTitle: 'Активные часы',
+        openCalendarBtn: 'Открыть календарь →',
+        emptySlotsList: 'Здесь появятся ваши рабочие часы',
+        newStudentTitle: 'Новый ученик',
+        studentNameLabel: 'Имя и фамилия',
+        namePlaceholder: 'напр. Анна Иванова',
+        rateLabel: 'Цена за 1 урок (zł)',
+        noteLabel: 'Заметка / Класс',
+        notePlaceholder: 'напр. 8 класс / подготовка',
+        addStudentBtn: '+ Добавить ученика',
+        allStudentsTitle: 'Все ученики',
+        emptyStudentsList: 'Список учеников пуст. Добавьте первого через форму слева.',
+        ratePerLesson: 'zł/урок',
+        balanceLabel: 'Баланс / Аванс:',
+        prepaidLessonsCount: 'уроков оплачено вперед',
+        depositBtn: 'Внести',
+        editStudentTitle: 'Редактировать данные ученика',
+        balanceEditLabel: 'Баланс / Предоплата (zł)',
+        cancelBtn: 'Отмена',
+        saveBtn: 'Сохранить',
+        deleteStudentConfirm: 'Удалить ученика? Занятия с ним будут освобождены.',
+        freeSlotConfirm: 'Освободить этот слот во все недели?',
+        noStudentsYet: 'У вас пока нет учеников',
+        createStudentFirst: '+ Создать ученика',
+        assignStudentDesc: 'Закрепить ученика за этим слотом еженедельно:',
+        selectStudentPlaceholder: '-- Выбрать из списка --',
+        saveWeeklyBtn: 'Закрепить еженедельно',
+        studentDepositFormLabel: 'Пополнить баланс ученика (напр. 100 zł):',
+        lessonStatusLabel: 'Статус проведения:',
+        btnAttended: '✅ Был',
+        btnScheduled: '⏳ План',
+        btnCancelled: '❌ Отмена',
+        freeSlotBtn: 'Освободить слот',
+        closeBtn: 'Закрыть',
+        amountPlaceholder: 'Сумма в zł',
+        lessonDate: 'Дата урока:',
+        toPayForThisLesson: 'К доплате за этот урок:',
+        cloudOk: 'Облако 🟢',
+        cloudSaving: 'Запись... ⏳',
+        cloudError: 'Ошибка 🔴',
+        connecting: 'Подключение...',
+        backupBtn: '💾 Копия',
+        restoreBtn: '📂 Загрузить'
+      }
+    };
 
     function getWeekDays(offset = 0) {
       const now = new Date();
@@ -76,17 +233,35 @@
     }
 
     function App() {
+      const [lang, setLang] = useState(() => localStorage.getItem('tutor_lang') || 'pl');
+      const t = I18N[lang] || I18N.pl;
+
+      const toggleLanguage = () => {
+        const nextLang = lang === 'pl' ? 'ru' : 'pl';
+        setLang(nextLang);
+        localStorage.setItem('tutor_lang', nextLang);
+      };
+
       const [view, setView] = useState('calendar');
       const [weekOffset, setWeekOffset] = useState(0);
       const [selectedMobileDay, setSelectedMobileDay] = useState(getCurrentDayIndex());
-      const [syncStatus, setSyncStatus] = useState('Łączenie...');
+      const [syncStatus, setSyncStatus] = useState('connecting');
 
       const weekDays = useMemo(() => getWeekDays(weekOffset), [weekOffset]);
 
-      const [workingSlots, setWorkingSlots] = useState([]);
-      const [students, setStudents] = useState([]);
-      const [recurringLessons, setRecurringLessons] = useState([]);
-      const [lessonLogs, setLessonLogs] = useState({});
+      // Локальный сейф (чтение при запуске)
+      const [workingSlots, setWorkingSlots] = useState(() => {
+        try { return JSON.parse(localStorage.getItem('tutor_vault_slots')) || []; } catch(e) { return []; }
+      });
+      const [students, setStudents] = useState(() => {
+        try { return JSON.parse(localStorage.getItem('tutor_vault_students')) || []; } catch(e) { return []; }
+      });
+      const [recurringLessons, setRecurringLessons] = useState(() => {
+        try { return JSON.parse(localStorage.getItem('tutor_vault_recurring')) || []; } catch(e) { return []; }
+      });
+      const [lessonLogs, setLessonLogs] = useState(() => {
+        try { return JSON.parse(localStorage.getItem('tutor_vault_logs')) || {}; } catch(e) { return {}; }
+      });
 
       const [modalSlot, setModalSlot] = useState(null);
 
@@ -94,33 +269,66 @@
         const unsubscribe = docRef.onSnapshot((doc) => {
           if (doc.exists) {
             const data = doc.data();
-            setWorkingSlots(data.workingSlots || []);
-            setStudents(data.students || []);
-            setRecurringLessons(data.recurringLessons || []);
-            setLessonLogs(data.lessonLogs || {});
-            setSyncStatus('Chmura 🟢');
+            
+            // Если в базе есть данные - обновляем экран и сейф
+            if (data.workingSlots && data.workingSlots.length > 0) {
+              setWorkingSlots(data.workingSlots);
+              localStorage.setItem('tutor_vault_slots', JSON.stringify(data.workingSlots));
+            }
+            if (data.students && data.students.length > 0) {
+              setStudents(data.students);
+              localStorage.setItem('tutor_vault_students', JSON.stringify(data.students));
+            }
+            if (data.recurringLessons) {
+              setRecurringLessons(data.recurringLessons);
+              localStorage.setItem('tutor_vault_recurring', JSON.stringify(data.recurringLessons));
+            }
+            if (data.lessonLogs) {
+              setLessonLogs(data.lessonLogs);
+              localStorage.setItem('tutor_vault_logs', JSON.stringify(data.lessonLogs));
+            }
+            setSyncStatus('cloudOk');
           } else {
-            docRef.set({
-              workingSlots: [],
-              students: [],
-              recurringLessons: [],
-              lessonLogs: {}
-            });
-            setSyncStatus('Chmura 🟢');
+            // Если база пуста, но в сейфе есть данные - отправляем их в облако
+            const localSlots = JSON.parse(localStorage.getItem('tutor_vault_slots') || '[]');
+            const localStudents = JSON.parse(localStorage.getItem('tutor_vault_students') || '[]');
+            const localRec = JSON.parse(localStorage.getItem('tutor_vault_recurring') || '[]');
+            const localLogs = JSON.parse(localStorage.getItem('tutor_vault_logs') || '{}');
+
+            if (localSlots.length > 0 || localStudents.length > 0) {
+              docRef.set({
+                workingSlots: localSlots,
+                students: localStudents,
+                recurringLessons: localRec,
+                lessonLogs: localLogs
+              }, { merge: true });
+            }
+            setSyncStatus('cloudOk');
           }
         }, (error) => {
-          console.error(error);
-          setSyncStatus('Błąd 🔴');
+          console.error("Firebase error:", error);
+          setSyncStatus('cloudError');
         });
 
         return () => unsubscribe();
       }, []);
 
       const saveToCloud = (updates) => {
-        setSyncStatus('Zapis... ⏳');
+        setSyncStatus('cloudSaving');
+
+        // Моментальное локальное сохранение
+        if (updates.workingSlots) localStorage.setItem('tutor_vault_slots', JSON.stringify(updates.workingSlots));
+        if (updates.students) localStorage.setItem('tutor_vault_students', JSON.stringify(updates.students));
+        if (updates.recurringLessons) localStorage.setItem('tutor_vault_recurring', JSON.stringify(updates.recurringLessons));
+        if (updates.lessonLogs) localStorage.setItem('tutor_vault_logs', JSON.stringify(updates.lessonLogs));
+
+        // Безопасное обновление облака
         docRef.set(updates, { merge: true })
-          .then(() => setSyncStatus('Chmura 🟢'))
-          .catch(() => setSyncStatus('Błąd 🔴'));
+          .then(() => setSyncStatus('cloudOk'))
+          .catch((err) => {
+            console.error(err);
+            setSyncStatus('cloudError');
+          });
       };
 
       const handleAddSlot = (day, startTime, duration) => {
@@ -150,7 +358,7 @@
       };
 
       const handleDeleteStudent = (studentId) => {
-        if (!confirm('Czy na pewno chcesz usunąć ucznia? Jego zajęcia zostaną zwolnione.')) return;
+        if (!confirm(t.deleteStudentConfirm)) return;
         const updatedStudents = students.filter(s => s.id !== studentId);
         const updatedRec = recurringLessons.filter(r => r.studentId !== studentId);
         setStudents(updatedStudents);
@@ -181,13 +389,11 @@
         setModalSlot(null);
       };
 
-      // Zmiana statusu obecności i rozliczenia
       const updateLessonStatus = (logKey, studentId, rate, newStatus, newPaidStatus) => {
         const currentLog = lessonLogs[logKey] || {};
         const oldPaid = currentLog.paidStatus || 'unpaid';
         
         let balanceDelta = 0;
-        // Gdy oznaczamy lekcję jako opłaconą - pobieramy jej koszt z salda ucznia
         if (oldPaid !== 'paid' && newPaidStatus === 'paid') {
           balanceDelta = -rate;
         } else if (oldPaid === 'paid' && newPaidStatus !== 'paid') {
@@ -221,7 +427,37 @@
         return `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;
       };
 
-      // Rozliczenie finansowe z uwzględnieniem częściowych zaliczek
+      // Ручной бэкап в файл
+      const exportBackup = () => {
+        const data = { workingSlots, students, recurringLessons, lessonLogs };
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `tutor_backup_${new Date().toISOString().slice(0,10)}.json`;
+        a.click();
+      };
+
+      const importBackup = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          try {
+            const data = JSON.parse(event.target.result);
+            if (data.students) setStudents(data.students);
+            if (data.workingSlots) setWorkingSlots(data.workingSlots);
+            if (data.recurringLessons) setRecurringLessons(data.recurringLessons);
+            if (data.lessonLogs) setLessonLogs(data.lessonLogs);
+            saveToCloud(data);
+            alert('Dane przywrócone! / Данные восстановлены!');
+          } catch (err) {
+            alert('Błąd pliku! / Ошибка файла!');
+          }
+        };
+        reader.readAsText(file);
+      };
+
       const weekStats = () => {
         let plannedCount = 0;
         let expectedTotal = 0;
@@ -285,23 +521,23 @@
             <div className="pb-2.5 mb-2.5 border-b border-slate-200 flex justify-between items-center">
               <div>
                 <div className={`text-xs font-bold ${isToday ? 'text-indigo-700' : 'text-slate-800'}`}>
-                  {DAY_NAMES[dayIdx]}
+                  {t.days[dayIdx]}
                 </div>
                 <div className="text-[11px] text-slate-500 font-medium">
-                  {date.getDate()} {MONTH_NAMES[date.getMonth()]}
+                  {date.getDate()} {t.months[date.getMonth()]}
                 </div>
               </div>
               {isToday && (
                 <span className="text-[10px] bg-indigo-600 text-white font-bold px-2 py-0.5 rounded-full">
-                  Dzisiaj
+                  {t.today}
                 </span>
               )}
             </div>
 
             {daySlots.length === 0 ? (
               <div className="flex-1 flex flex-col items-center justify-center text-xs text-slate-400 italic py-8">
-                <span>☕ Wolny dzień</span>
-                <span className="text-[10px] text-slate-300 mt-0.5">Brak godzin pracy</span>
+                <span>{t.freeDay}</span>
+                <span className="text-[10px] text-slate-300 mt-0.5">{t.noWorkingHours}</span>
               </div>
             ) : (
               <div className="space-y-2 flex-1">
@@ -316,7 +552,6 @@
                   const isFullyCoveredByBalance = balance >= (recurring?.rate || 0);
                   const isPaid = isExplicitlyPaid || (log?.paidStatus === undefined && isFullyCoveredByBalance);
                   
-                  // Wyliczamy czy jest częściowa wpłata i ile uczeń musi dopłacić
                   const hasPartialPayment = !isPaid && balance > 0 && balance < (recurring?.rate || 0);
                   const dopłataKwota = hasPartialPayment ? (recurring.rate - balance) : recurring?.rate;
 
@@ -326,7 +561,7 @@
                     <div key={slot.id} className="bg-white rounded-xl border border-slate-200 p-2.5 shadow-sm">
                       <div className="flex items-center justify-between text-xs font-semibold text-slate-500 mb-1.5">
                         <span>⏰ {slot.startTime} – {calculateEndTime(slot.startTime, slot.duration)}</span>
-                        <span className="text-[10px] text-slate-400">{slot.duration} min</span>
+                        <span className="text-[10px] text-slate-400">{slot.duration} {t.min}</span>
                       </div>
 
                       {!recurring ? (
@@ -334,7 +569,7 @@
                           onClick={() => setModalSlot({ slot, recurring: null, dateStr, dayIdx })}
                           className="w-full py-2 border border-dashed border-slate-300 hover:border-indigo-400 hover:bg-indigo-50/30 rounded-lg text-slate-400 hover:text-indigo-600 text-xs font-semibold transition"
                         >
-                          + Zapisz ucznia
+                          {t.bookStudent}
                         </button>
                       ) : (
                         <div 
@@ -348,38 +583,37 @@
                           }`}
                         >
                           <div className="flex justify-between items-start gap-1">
-                            <span className="font-bold text-xs text-slate-900 truncate">{student?.name || 'Uczeń usunięty'}</span>
+                            <span className="font-bold text-xs text-slate-900 truncate">{student?.name || t.studentDeleted}</span>
                             
-                            {/* Inteligentna etykieta płatności */}
                             {isPaid ? (
                               <span className="text-[10px] px-1.5 py-0.5 rounded font-bold shrink-0 bg-emerald-100 text-emerald-800">
-                                Opłacone
+                                {t.paid}
                               </span>
                             ) : hasPartialPayment ? (
                               <span className="text-[10px] px-1.5 py-0.5 rounded font-bold shrink-0 bg-amber-100 text-amber-900 border border-amber-300">
-                                Dopłata: {dopłataKwota} zł
+                                {t.surcharge} {dopłataKwota} zł
                               </span>
                             ) : (
                               <span className="text-[10px] px-1.5 py-0.5 rounded font-bold shrink-0 bg-amber-50 text-amber-800">
-                                Do zapłaty: {recurring.rate} zł
+                                {t.toCollect}: {recurring.rate} zł
                               </span>
                             )}
                           </div>
 
                           <div className="text-xs text-slate-600 mt-1 flex justify-between items-center">
-                            <span className="font-semibold">Koszt: {recurring.rate} zł</span>
+                            <span className="font-semibold">{t.cost} {recurring.rate} zł</span>
                             {student?.balance > 0 && (
                               <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.5 rounded">
-                                Zaliczka: {student.balance} zł
+                                {t.prepayment} {student.balance} zł
                               </span>
                             )}
                           </div>
 
                           <div className="text-[10px] text-slate-500 pt-1 mt-1 border-t border-slate-200/60 flex justify-between items-center">
                             <span>
-                              {status === 'scheduled' && '⏳ Zaplanowane'}
-                              {status === 'attended' && '✅ Odbyło się'}
-                              {status === 'cancelled' && '❌ Odwołane'}
+                              {status === 'scheduled' && t.statusScheduled}
+                              {status === 'attended' && t.statusAttended}
+                              {status === 'cancelled' && t.statusCancelled}
                             </span>
                           </div>
                         </div>
@@ -397,17 +631,31 @@
         <div className="max-w-7xl mx-auto p-3 sm:p-6 pb-16">
           <header className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-slate-200">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <h1 className="text-xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
+              <div className="flex items-center gap-2">
+                <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">
                   📅 TutorFlow
                 </h1>
                 <span className="text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full">
-                  {syncStatus}
+                  {t[syncStatus] || syncStatus}
                 </span>
+
+                <button 
+                  onClick={toggleLanguage}
+                  className="ml-1 text-xs font-bold px-2 py-1 bg-white border border-slate-300 hover:border-indigo-400 rounded-lg shadow-sm text-slate-700 transition"
+                >
+                  {lang === 'pl' ? '🇵🇱 PL' : '🇷🇺 RU'}
+                </button>
               </div>
-              <span className="text-xs text-slate-500 hidden sm:inline capitalize">
-                {new Date().toLocaleDateString('pl-PL', { weekday: 'short', day: 'numeric', month: 'short' })}
-              </span>
+
+              <div className="flex items-center gap-1">
+                <button onClick={exportBackup} className="text-xs font-bold px-2 py-1 bg-white border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50" title="Kopia zapasowa">
+                  {t.backupBtn}
+                </button>
+                <label className="text-xs font-bold px-2 py-1 bg-white border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 cursor-pointer" title="Wczytaj kopię">
+                  {t.restoreBtn}
+                  <input type="file" accept=".json" onChange={importBackup} className="hidden" />
+                </label>
+              </div>
             </div>
 
             <div className="grid grid-cols-3 gap-1.5 sm:flex sm:items-center">
@@ -415,50 +663,49 @@
                 onClick={() => setView('calendar')} 
                 className={`py-2 px-3 text-center rounded-xl text-xs font-bold transition ${view === 'calendar' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'}`}
               >
-                1. Grafik
+                {t.tabSchedule}
               </button>
               <button 
                 onClick={() => setView('slots_setup')} 
                 className={`py-2 px-3 text-center rounded-xl text-xs font-bold transition ${view === 'slots_setup' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'}`}
               >
-                ⚙️ Godziny ({workingSlots.length})
+                {t.tabSlots} ({workingSlots.length})
               </button>
               <button 
                 onClick={() => setView('students')} 
                 className={`py-2 px-3 text-center rounded-xl text-xs font-bold transition ${view === 'students' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'}`}
               >
-                👥 Uczniowie ({students.length})
+                {t.tabStudents} ({students.length})
               </button>
             </div>
           </header>
 
-          {/* WIDOK 1: GRAFIK */}
+          {/* ВИД 1: КАЛЕНДАРЬ */}
           {view === 'calendar' && (
             <div className="mt-3 sm:mt-5">
               {workingSlots.length === 0 ? (
                 <div className="bg-amber-50 border border-amber-200 p-6 rounded-2xl text-center max-w-lg mx-auto my-6">
-                  <h3 className="font-bold text-amber-900 text-base mb-1">Godziny pracy nie zostały ustawione</h3>
-                  <p className="text-xs text-amber-700 mb-4">Dodaj godziny, w których możesz uczyć (np. 14:30), aby kalendarz się zapełnił.</p>
+                  <h3 className="font-bold text-amber-900 text-base mb-1">{t.noSlotsTitle}</h3>
+                  <p className="text-xs text-amber-700 mb-4">{t.noSlotsDesc}</p>
                   <button onClick={() => setView('slots_setup')} className="px-4 py-2 bg-indigo-600 text-white font-bold text-xs rounded-xl hover:bg-indigo-700 shadow-sm">
-                    Ustaw godziny pracy →
+                    {t.setSlotsBtn}
                   </button>
                 </div>
               ) : (
                 <>
-                  {/* Panel tygodnia i podsumowania */}
                   <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-3.5 mb-3.5">
                     <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                       <button 
                         onClick={() => setWeekOffset(prev => prev - 1)} 
                         className="w-8 h-8 flex items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 active:scale-95 transition font-bold"
-                        title="Poprzedni tydzień"
+                        title={t.prevWeek}
                       >
                         ‹
                       </button>
 
                       <div className="text-center">
                         <div className="text-xs sm:text-sm font-extrabold text-slate-800">
-                          {weekDays[0].getDate()} {MONTH_NAMES[weekDays[0].getMonth()]} — {weekDays[6].getDate()} {MONTH_NAMES[weekDays[6].getMonth()]} {weekDays[6].getFullYear()} r.
+                          {weekDays[0].getDate()} {t.months[weekDays[0].getMonth()]} — {weekDays[6].getDate()} {t.months[weekDays[6].getMonth()]} {weekDays[6].getFullYear()} {lang === 'pl' ? 'r.' : 'г.'}
                         </div>
                         {weekOffset !== 0 ? (
                           <button 
@@ -468,17 +715,17 @@
                             }}
                             className="text-[10px] text-indigo-600 font-bold hover:underline mt-0.5 block mx-auto"
                           >
-                            Wróć do bieżącego tygodnia
+                            {t.backToCurrentWeek}
                           </button>
                         ) : (
-                          <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider block">Bieżący tydzień</span>
+                          <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider block">{t.currentWeek}</span>
                         )}
                       </div>
 
                       <button 
                         onClick={() => setWeekOffset(prev => prev + 1)} 
                         className="w-8 h-8 flex items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 active:scale-95 transition font-bold"
-                        title="Następny tydzień"
+                        title={t.nextWeek}
                       >
                         ›
                       </button>
@@ -486,23 +733,22 @@
 
                     <div className="grid grid-cols-3 gap-2 pt-3">
                       <div className="bg-indigo-50/70 border border-indigo-100/80 rounded-xl p-2 text-center">
-                        <span className="text-[10px] uppercase font-bold text-indigo-600 block">Plan</span>
+                        <span className="text-[10px] uppercase font-bold text-indigo-600 block">{t.plan}</span>
                         <span className="text-xs sm:text-sm font-black text-indigo-950 mt-0.5 block">{stats.expectedTotal} zł</span>
                       </div>
 
                       <div className="bg-emerald-50/70 border border-emerald-100/80 rounded-xl p-2 text-center">
-                        <span className="text-[10px] uppercase font-bold text-emerald-600 block">Opłacone</span>
+                        <span className="text-[10px] uppercase font-bold text-emerald-600 block">{t.paid}</span>
                         <span className="text-xs sm:text-sm font-black text-emerald-800 mt-0.5 block">{stats.earnedPaid} zł</span>
                       </div>
 
                       <div className="bg-amber-50/70 border border-amber-100/80 rounded-xl p-2 text-center">
-                        <span className="text-[10px] uppercase font-bold text-amber-700 block">Do pobrania</span>
+                        <span className="text-[10px] uppercase font-bold text-amber-700 block">{t.toCollect}</span>
                         <span className="text-xs sm:text-sm font-black text-amber-900 mt-0.5 block">{stats.pendingToCollect} zł</span>
                       </div>
                     </div>
                   </div>
 
-                  {/* WIDOK MOBILNY */}
                   <div className="block lg:hidden mb-4">
                     <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-1">
                       {weekDays.map((date, idx) => {
@@ -524,7 +770,7 @@
                             }`}
                           >
                             <span className="text-[10px] uppercase font-bold">
-                              {SHORT_DAYS[idx]}
+                              {t.shortDays[idx]}
                             </span>
                             <span className="text-sm font-extrabold mt-0.5">
                               {date.getDate()}
@@ -544,7 +790,6 @@
                     </div>
                   </div>
 
-                  {/* WIDOK KOMPUTEROWY */}
                   <div className="hidden lg:grid lg:grid-cols-7 gap-3">
                     {weekDays.map((date, dayIdx) => renderDayColumn(date, dayIdx, false))}
                   </div>
@@ -553,9 +798,10 @@
             </div>
           )}
 
-          {/* WIDOK 2: USTAWIENIA GODZIN */}
+          {/* ВИД 2: ЧАСЫ */}
           {view === 'slots_setup' && (
             <SlotsManager 
+              t={t}
               workingSlots={workingSlots} 
               onAddSlot={handleAddSlot} 
               onDeleteSlot={handleDeleteSlot}
@@ -564,9 +810,10 @@
             />
           )}
 
-          {/* WIDOK 3: UCZNIOWIE */}
+          {/* ВИД 3: УЧЕНИКИ */}
           {view === 'students' && (
             <StudentsManager 
+              t={t}
               students={students} 
               setStudents={(newStudents) => {
                 setStudents(newStudents);
@@ -578,9 +825,10 @@
             />
           )}
 
-          {/* OKNO MODALNE LEKCJI */}
+          {/* МОДАЛЬНОЕ ОКНО */}
           {modalSlot && (
             <LessonModal 
+              t={t}
               data={modalSlot} 
               onClose={() => setModalSlot(null)}
               students={students}
@@ -595,7 +843,7 @@
       );
     }
 
-    function SlotsManager({ workingSlots, onAddSlot, onDeleteSlot, calculateEndTime, onGoToCalendar }) {
+    function SlotsManager({ t, workingSlots, onAddSlot, onDeleteSlot, calculateEndTime, onGoToCalendar }) {
       const [day, setDay] = useState(0);
       const [startTime, setStartTime] = useState('14:30');
       const [duration, setDuration] = useState(60);
@@ -609,23 +857,23 @@
       return (
         <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm h-fit">
-            <h3 className="font-bold text-slate-900 text-base mb-1">Dodaj godziny pracy</h3>
-            <p className="text-xs text-slate-500 mb-3">Wpisz dowolną godzinę (np. 14:30, 15:15).</p>
+            <h3 className="font-bold text-slate-900 text-base mb-1">{t.addSlotsTitle}</h3>
+            <p className="text-xs text-slate-500 mb-3">{t.addSlotsDesc}</p>
             
             <form onSubmit={handleFormSubmit} className="space-y-3">
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Dzień tygodnia</label>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">{t.dayOfWeek}</label>
                 <select 
                   value={day} 
                   onChange={e => setDay(Number(e.target.value))}
                   className="w-full text-sm px-3 py-2 border border-slate-300 rounded-xl focus:outline-indigo-500 bg-white"
                 >
-                  {DAY_NAMES.map((d, idx) => <option key={d} value={idx}>{d}</option>)}
+                  {t.days.map((d, idx) => <option key={d} value={idx}>{d}</option>)}
                 </select>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Godzina rozpoczęcia</label>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">{t.startTime}</label>
                 <input 
                   type="time" 
                   value={startTime} 
@@ -636,42 +884,42 @@
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Czas trwania</label>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">{t.duration}</label>
                 <select 
                   value={duration} 
                   onChange={e => setDuration(Number(e.target.value))}
                   className="w-full text-sm px-3 py-2 border border-slate-300 rounded-xl focus:outline-indigo-500 bg-white"
                 >
-                  <option value={45}>45 minut</option>
-                  <option value={60}>60 minut (1 godz.)</option>
-                  <option value={90}>90 minut (1.5 godz.)</option>
-                  <option value={120}>120 minut (2 godz.)</option>
+                  <option value={45}>45 {t.min}</option>
+                  <option value={60}>60 {t.min}</option>
+                  <option value={90}>90 {t.min}</option>
+                  <option value={120}>120 {t.min}</option>
                 </select>
               </div>
 
               <button type="submit" className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold transition shadow-sm">
-                + Dodaj termin do grafiku
+                {t.addSlotBtn}
               </button>
             </form>
           </div>
 
           <div className="md:col-span-2 space-y-3">
             <div className="flex justify-between items-center">
-              <h3 className="font-bold text-slate-900 text-base">Aktywne terminy ({workingSlots.length})</h3>
+              <h3 className="font-bold text-slate-900 text-base">{t.activeSlotsTitle} ({workingSlots.length})</h3>
               {workingSlots.length > 0 && (
-                <button onClick={onGoToCalendar} className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-xl font-bold transition">
-                  Otwórz kalendarz →
+                <button onClick={onGoToCalendar} className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-1.5 rounded-xl font-bold transition">
+                  {t.openCalendarBtn}
                 </button>
               )}
             </div>
 
             {workingSlots.length === 0 ? (
               <div className="bg-white p-8 rounded-2xl border border-dashed border-slate-300 text-center text-slate-400 text-xs sm:text-sm">
-                Tutaj pojawią się Twoje godziny pracy
+                {t.emptySlotsList}
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {DAY_NAMES.map((dName, dIdx) => {
+                {t.days.map((dName, dIdx) => {
                   const daySlots = workingSlots.filter(s => s.day === dIdx).sort((a,b) => a.startTime.localeCompare(b.startTime));
                   if (daySlots.length === 0) return null;
 
@@ -682,12 +930,12 @@
                         {daySlots.map(s => (
                           <div key={s.id} className="flex justify-between items-center text-xs bg-slate-50 p-2 rounded-xl border border-slate-100">
                             <span className="font-semibold text-slate-700">
-                              ⏰ {s.startTime} – {calculateEndTime(s.startTime, s.duration)} <span className="text-slate-400 font-normal">({s.duration} min)</span>
+                              ⏰ {s.startTime} – {calculateEndTime(s.startTime, s.duration)} <span className="text-slate-400 font-normal">({s.duration} {t.min})</span>
                             </span>
                             <button 
                               onClick={() => onDeleteSlot(s.id)}
                               className="text-rose-500 hover:text-rose-700 font-bold px-2 py-1 text-sm"
-                              title="Usuń termin"
+                              title="Usuń"
                             >
                               ✕
                             </button>
@@ -704,7 +952,7 @@
       );
     }
 
-    function StudentsManager({ students, setStudents, onUpdateStudent, onAddPayment, onDeleteStudent }) {
+    function StudentsManager({ t, students, setStudents, onUpdateStudent, onAddPayment, onDeleteStudent }) {
       const [name, setName] = useState('');
       const [rate, setRate] = useState(50);
       const [note, setNote] = useState('');
@@ -743,21 +991,21 @@
       return (
         <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm h-fit">
-            <h3 className="font-bold text-slate-900 mb-3">Nowy uczeń</h3>
+            <h3 className="font-bold text-slate-900 mb-3">{t.newStudentTitle}</h3>
             <form onSubmit={handleAddStudent} className="space-y-3">
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Imię i nazwisko</label>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">{t.studentNameLabel}</label>
                 <input 
                   type="text" 
                   value={name} 
                   onChange={e => setName(e.target.value)} 
-                  placeholder="np. Anna Nowak"
+                  placeholder={t.namePlaceholder}
                   className="w-full text-sm px-3 py-2 border border-slate-300 rounded-xl focus:outline-indigo-500"
                   required
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Cena za lekcję (zł)</label>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">{t.rateLabel}</label>
                 <input 
                   type="number" 
                   value={rate} 
@@ -767,26 +1015,26 @@
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Notatka / Klasa</label>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">{t.noteLabel}</label>
                 <input 
                   type="text" 
                   value={note} 
                   onChange={e => setNote(e.target.value)} 
-                  placeholder="np. klasa 8 / egzamin"
+                  placeholder={t.notePlaceholder}
                   className="w-full text-sm px-3 py-2 border border-slate-300 rounded-xl focus:outline-indigo-500"
                 />
               </div>
               <button type="submit" className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold transition shadow-sm">
-                + Dodaj ucznia
+                {t.addStudentBtn}
               </button>
             </form>
           </div>
 
           <div className="md:col-span-2 space-y-3">
-            <h3 className="font-bold text-slate-900 mb-2">Wszyscy uczniowie ({students.length})</h3>
+            <h3 className="font-bold text-slate-900 mb-2">{t.allStudentsTitle} ({students.length})</h3>
             {students.length === 0 ? (
               <div className="bg-white p-8 rounded-2xl border border-dashed border-slate-300 text-center text-slate-400 text-xs sm:text-sm">
-                Lista uczniów jest pusta. Dodaj pierwszego formularzem po lewej stronie.
+                {t.emptyStudentsList}
               </div>
             ) : (
               students.map(st => (
@@ -795,15 +1043,15 @@
                     <div className="flex items-center gap-2">
                       <h4 className="font-bold text-slate-900">{st.name}</h4>
                       <span className="text-xs bg-indigo-50 text-indigo-700 font-semibold px-2 py-0.5 rounded-lg">
-                        {st.defaultRate} zł/lekcja
+                        {st.defaultRate} {t.ratePerLesson}
                       </span>
                     </div>
                     {st.note && <p className="text-xs text-slate-500 mt-0.5">{st.note}</p>}
                     <div className="mt-1 text-xs">
-                      Saldo / Zaliczka: <span className={`font-bold ${st.balance > 0 ? 'text-emerald-600' : st.balance < 0 ? 'text-rose-600' : 'text-slate-600'}`}>{st.balance} zł</span>
+                      {t.balanceLabel} <span className={`font-bold ${st.balance > 0 ? 'text-emerald-600' : st.balance < 0 ? 'text-rose-600' : 'text-slate-600'}`}>{st.balance} zł</span>
                       {st.balance >= st.defaultRate && (
                         <span className="ml-2 text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-medium">
-                          +{Math.floor(st.balance / st.defaultRate)} lekcji opłaconych z góry
+                          +{Math.floor(st.balance / st.defaultRate)} {t.prepaidLessonsCount}
                         </span>
                       )}
                     </div>
@@ -821,13 +1069,12 @@
                       onClick={() => handlePaymentSubmit(st.id)}
                       className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition"
                     >
-                      Wpłać
+                      {t.depositBtn}
                     </button>
                     
                     <button 
                       onClick={() => setEditingStudent({ ...st })}
                       className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition"
-                      title="Edytuj ucznia"
                     >
                       ✏️
                     </button>
@@ -849,13 +1096,13 @@
             <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
               <div className="bg-white rounded-2xl max-w-sm w-full p-5 shadow-xl border border-slate-200">
                 <div className="flex justify-between items-center pb-3 border-b border-slate-100 mb-3">
-                  <h3 className="font-bold text-slate-900 text-base">Edycja danych ucznia</h3>
+                  <h3 className="font-bold text-slate-900 text-base">{t.editStudentTitle}</h3>
                   <button onClick={() => setEditingStudent(null)} className="text-slate-400 hover:text-slate-600 text-lg font-bold">✕</button>
                 </div>
 
                 <form onSubmit={handleSaveEdit} className="space-y-3">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1">Imię i nazwisko</label>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">{t.studentNameLabel}</label>
                     <input 
                       type="text" 
                       value={editingStudent.name} 
@@ -865,7 +1112,7 @@
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1">Stawka za lekcję (zł)</label>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">{t.rateLabel}</label>
                     <input 
                       type="number" 
                       value={editingStudent.defaultRate} 
@@ -875,7 +1122,7 @@
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1">Saldo / Nadpłata (zł)</label>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">{t.balanceEditLabel}</label>
                     <input 
                       type="number" 
                       value={editingStudent.balance} 
@@ -885,7 +1132,7 @@
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1">Notatka</label>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">{t.noteLabel}</label>
                     <input 
                       type="text" 
                       value={editingStudent.note || ''} 
@@ -900,13 +1147,13 @@
                       onClick={() => setEditingStudent(null)}
                       className="w-1/2 py-2.5 bg-slate-100 text-slate-700 text-xs font-bold rounded-xl"
                     >
-                      Anuluj
+                      {t.cancelBtn}
                     </button>
                     <button 
                       type="submit" 
                       className="w-1/2 py-2.5 bg-indigo-600 text-white text-xs font-bold rounded-xl shadow-sm"
                     >
-                      Zapisz
+                      {t.saveBtn}
                     </button>
                   </div>
                 </form>
@@ -917,7 +1164,7 @@
       );
     }
 
-    function LessonModal({ data, onClose, students, onAssign, onUpdateStatus, onAddPayment, calculateEndTime, onOpenStudentsTab }) {
+    function LessonModal({ t, data, onClose, students, onAssign, onUpdateStatus, onAddPayment, calculateEndTime, onOpenStudentsTab }) {
       const { slot, recurring, logKey, student, log, dateStr, dayIdx, dopłataKwota, hasPartialPayment, isPaid } = data;
       const [selectedStudentId, setSelectedStudentId] = useState(recurring?.studentId || '');
       const [customRate, setCustomRate] = useState(recurring?.rate || 50);
@@ -937,9 +1184,9 @@
             <div className="flex justify-between items-center pb-3 border-b border-slate-100">
               <div>
                 <h3 className="font-bold text-slate-900 text-base">
-                  {DAY_NAMES[dayIdx]}, {slot.startTime} – {calculateEndTime(slot.startTime, slot.duration)}
+                  {t.days[dayIdx]}, {slot.startTime} – {calculateEndTime(slot.startTime, slot.duration)}
                 </h3>
-                <p className="text-xs text-slate-500">Data lekcji: {dateStr}</p>
+                <p className="text-xs text-slate-500">{t.lessonDate} {dateStr}</p>
               </div>
               <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-xl font-bold p-1">✕</button>
             </div>
@@ -948,16 +1195,16 @@
               <div className="mt-4 space-y-4">
                 {students.length === 0 ? (
                   <div className="text-center py-4">
-                    <p className="text-xs text-slate-500 mb-3">Nie masz jeszcze dodanych uczniów</p>
+                    <p className="text-xs text-slate-500 mb-3">{t.noStudentsYet}</p>
                     <button onClick={onOpenStudentsTab} className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold">
-                      + Dodaj ucznia
+                      {t.createStudentFirst}
                     </button>
                   </div>
                 ) : (
                   <>
-                    <p className="text-xs text-slate-600 font-medium">Przypisz stałego ucznia do tego terminu co tydzień:</p>
+                    <p className="text-xs text-slate-600 font-medium">{t.assignStudentDesc}</p>
                     <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">Uczeń</label>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">{t.tabStudents.replace('👥 ', '')}</label>
                       <select 
                         value={selectedStudentId} 
                         onChange={e => {
@@ -967,13 +1214,13 @@
                         }}
                         className="w-full text-sm px-3 py-2 border border-slate-300 rounded-xl bg-white"
                       >
-                        <option value="">-- Wybierz z listy --</option>
+                        <option value="">{t.selectStudentPlaceholder}</option>
                         {students.map(s => <option key={s.id} value={s.id}>{s.name} ({s.defaultRate} zł)</option>)}
                       </select>
                     </div>
 
                     <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">Stawka za lekcję (zł)</label>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">{t.rateLabel}</label>
                       <input 
                         type="number" 
                         value={customRate} 
@@ -987,39 +1234,37 @@
                       disabled={!selectedStudentId}
                       className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 text-white rounded-xl text-sm font-bold transition"
                     >
-                      Zapisz cotygodniowo
+                      {t.saveWeeklyBtn}
                     </button>
                   </>
                 )}
               </div>
             ) : (
               <div className="mt-4 space-y-4">
-                {/* Szczegóły rozliczenia */}
                 <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-sm space-y-1">
                   <div className="flex justify-between font-bold text-slate-900">
                     <span>{student?.name}</span>
-                    <span>Koszt: {recurring.rate} zł</span>
+                    <span>{t.cost} {recurring.rate} zł</span>
                   </div>
                   <div className="text-xs flex justify-between text-slate-600 pt-1">
-                    <span>Środki ucznia (zaliczka):</span>
+                    <span>{t.balanceLabel}</span>
                     <strong className="text-indigo-600">{student?.balance || 0} zł</strong>
                   </div>
 
                   {hasPartialPayment && (
                     <div className="text-xs flex justify-between text-amber-800 bg-amber-50 p-2 rounded-lg border border-amber-200 mt-2 font-bold">
-                      <span>Do dopłacenia za tę lekcję:</span>
+                      <span>{t.toPayForThisLesson}</span>
                       <span>{dopłataKwota} zł</span>
                     </div>
                   )}
                 </div>
 
-                {/* Formularz wpłaty */}
                 <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl">
-                  <label className="block text-[11px] font-bold text-emerald-800 mb-1">Wpłać na konto ucznia (np. 100 zł):</label>
+                  <label className="block text-[11px] font-bold text-emerald-800 mb-1">{t.studentDepositFormLabel}</label>
                   <div className="flex gap-2">
                     <input 
                       type="number" 
-                      placeholder="Kwota w zł" 
+                      placeholder={t.amountPlaceholder} 
                       value={paymentAddVal} 
                       onChange={e => setPaymentAddVal(e.target.value)}
                       className="w-full text-xs px-3 py-2 border border-emerald-300 rounded-lg bg-white"
@@ -1028,32 +1273,31 @@
                       onClick={handleAddDeposit}
                       className="px-4 py-2 bg-emerald-600 text-white text-xs font-bold rounded-lg hover:bg-emerald-700"
                     >
-                      Wpłać
+                      {t.depositBtn}
                     </button>
                   </div>
                 </div>
 
-                {/* Przyciski statusu */}
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Status lekcji:</label>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">{t.lessonStatusLabel}</label>
                   <div className="grid grid-cols-3 gap-2">
                     <button 
                       onClick={() => onUpdateStatus(logKey, student?.id, recurring.rate, 'attended', isPaid ? 'paid' : 'unpaid')}
                       className={`py-2 px-1 text-xs font-bold rounded-xl border transition ${currentStatus === 'attended' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white border-slate-200 hover:bg-slate-50'}`}
                     >
-                      ✅ Był(a)
+                      {t.btnAttended}
                     </button>
                     <button 
                       onClick={() => onUpdateStatus(logKey, student?.id, recurring.rate, 'scheduled', isPaid ? 'paid' : 'unpaid')}
                       className={`py-2 px-1 text-xs font-bold rounded-xl border transition ${currentStatus === 'scheduled' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white border-slate-200 hover:bg-slate-50'}`}
                     >
-                      ⏳ Plan
+                      {t.btnScheduled}
                     </button>
                     <button 
                       onClick={() => onUpdateStatus(logKey, student?.id, recurring.rate, 'cancelled', 'unpaid')}
                       className={`py-2 px-1 text-xs font-bold rounded-xl border transition ${currentStatus === 'cancelled' ? 'bg-rose-600 text-white border-rose-600' : 'bg-white border-slate-200 hover:bg-slate-50'}`}
                     >
-                      ❌ Odwołane
+                      {t.btnCancelled}
                     </button>
                   </div>
                 </div>
@@ -1061,16 +1305,16 @@
                 <div className="pt-3 border-t border-slate-100 flex justify-between items-center">
                   <button 
                     onClick={() => {
-                      if (confirm('Czy chcesz zwolnić ten termin we wszystkich tygodniach?')) {
+                      if (confirm(t.freeSlotConfirm)) {
                         onAssign(slot.id, null);
                       }
                     }}
                     className="text-xs text-rose-600 hover:underline"
                   >
-                    Zwolnij termin
+                    {t.freeSlotBtn}
                   </button>
                   <button onClick={onClose} className="px-5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl">
-                    Zamknij
+                    {t.closeBtn}
                   </button>
                 </div>
               </div>
