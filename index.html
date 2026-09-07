@@ -181,11 +181,13 @@
         setModalSlot(null);
       };
 
+      // Zmiana statusu obecności i rozliczenia
       const updateLessonStatus = (logKey, studentId, rate, newStatus, newPaidStatus) => {
         const currentLog = lessonLogs[logKey] || {};
         const oldPaid = currentLog.paidStatus || 'unpaid';
         
         let balanceDelta = 0;
+        // Gdy oznaczamy lekcję jako opłaconą - pobieramy jej koszt z salda ucznia
         if (oldPaid !== 'paid' && newPaidStatus === 'paid') {
           balanceDelta = -rate;
         } else if (oldPaid === 'paid' && newPaidStatus !== 'paid') {
@@ -219,11 +221,12 @@
         return `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;
       };
 
+      // Rozliczenie finansowe z uwzględnieniem częściowych zaliczek
       const weekStats = () => {
         let plannedCount = 0;
         let expectedTotal = 0;
         let earnedPaid = 0;
-        let unpaidCount = 0;
+        let pendingToCollect = 0;
 
         weekDays.forEach((date, dayIdx) => {
           const dateStr = formatDateKey(date);
@@ -236,23 +239,30 @@
             const logKey = `${dateStr}_${slot.id}`;
             const log = lessonLogs[logKey];
             const student = students.find(s => s.id === rel.studentId);
-            const isPaid = log?.paidStatus === 'paid' || (student && student.balance >= rel.rate);
+            const isExplicitlyPaid = log?.paidStatus === 'paid';
 
             if (log?.status !== 'cancelled') {
               plannedCount++;
               expectedTotal += rel.rate;
 
-              if (isPaid) {
+              if (isExplicitlyPaid) {
                 earnedPaid += rel.rate;
               } else {
-                unpaidCount++;
+                const bal = student ? Math.max(0, student.balance) : 0;
+                if (bal >= rel.rate) {
+                  earnedPaid += rel.rate;
+                } else if (bal > 0) {
+                  earnedPaid += bal;
+                  pendingToCollect += (rel.rate - bal);
+                } else {
+                  pendingToCollect += rel.rate;
+                }
               }
             }
           });
         });
 
-        const pendingToCollect = Math.max(0, expectedTotal - earnedPaid);
-        return { plannedCount, expectedTotal, earnedPaid, pendingToCollect, unpaidCount };
+        return { plannedCount, expectedTotal, earnedPaid, pendingToCollect };
       };
 
       const stats = weekStats();
@@ -301,8 +311,15 @@
                   const logKey = `${dateStr}_${slot.id}`;
                   const log = lessonLogs[logKey];
 
-                  const isAutoPaidByBalance = student && student.balance >= (recurring?.rate || 0);
-                  const isPaid = log?.paidStatus === 'paid' || (log?.paidStatus === undefined && isAutoPaidByBalance);
+                  const isExplicitlyPaid = log?.paidStatus === 'paid';
+                  const balance = student ? student.balance : 0;
+                  const isFullyCoveredByBalance = balance >= (recurring?.rate || 0);
+                  const isPaid = isExplicitlyPaid || (log?.paidStatus === undefined && isFullyCoveredByBalance);
+                  
+                  // Wyliczamy czy jest częściowa wpłata i ile uczeń musi dopłacić
+                  const hasPartialPayment = !isPaid && balance > 0 && balance < (recurring?.rate || 0);
+                  const dopłataKwota = hasPartialPayment ? (recurring.rate - balance) : recurring?.rate;
+
                   const status = log?.status || 'scheduled';
 
                   return (
@@ -321,7 +338,7 @@
                         </button>
                       ) : (
                         <div 
-                          onClick={() => setModalSlot({ slot, recurring, logKey, student, log, dateStr, dayIdx })}
+                          onClick={() => setModalSlot({ slot, recurring, logKey, student, log, dateStr, dayIdx, dopłataKwota, hasPartialPayment, isPaid })}
                           className={`p-2 rounded-lg cursor-pointer border transition ${
                             status === 'cancelled' 
                               ? 'bg-rose-50 border-rose-200 opacity-60 text-slate-500' 
@@ -332,15 +349,29 @@
                         >
                           <div className="flex justify-between items-start gap-1">
                             <span className="font-bold text-xs text-slate-900 truncate">{student?.name || 'Uczeń usunięty'}</span>
-                            <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold shrink-0 ${isPaid ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
-                              {isPaid ? 'Opłacone' : 'Do zapłaty'}
-                            </span>
+                            
+                            {/* Inteligentna etykieta płatności */}
+                            {isPaid ? (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded font-bold shrink-0 bg-emerald-100 text-emerald-800">
+                                Opłacone
+                              </span>
+                            ) : hasPartialPayment ? (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded font-bold shrink-0 bg-amber-100 text-amber-900 border border-amber-300">
+                                Dopłata: {dopłataKwota} zł
+                              </span>
+                            ) : (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded font-bold shrink-0 bg-amber-50 text-amber-800">
+                                Do zapłaty: {recurring.rate} zł
+                              </span>
+                            )}
                           </div>
 
                           <div className="text-xs text-slate-600 mt-1 flex justify-between items-center">
-                            <span className="font-semibold">{recurring.rate} zł</span>
+                            <span className="font-semibold">Koszt: {recurring.rate} zł</span>
                             {student?.balance > 0 && (
-                              <span className="text-[10px] text-emerald-700 font-semibold">Zaliczka: +{student.balance} zł</span>
+                              <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.5 rounded">
+                                Zaliczka: {student.balance} zł
+                              </span>
                             )}
                           </div>
 
@@ -364,7 +395,6 @@
 
       return (
         <div className="max-w-7xl mx-auto p-3 sm:p-6 pb-16">
-          {/* Główny pasek nawigacji */}
           <header className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-slate-200">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
@@ -380,7 +410,6 @@
               </span>
             </div>
 
-            {/* Zakładki górne */}
             <div className="grid grid-cols-3 gap-1.5 sm:flex sm:items-center">
               <button 
                 onClick={() => setView('calendar')} 
@@ -403,7 +432,7 @@
             </div>
           </header>
 
-          {/* WIDOK 1: GRAFIK / KALENDARZ */}
+          {/* WIDOK 1: GRAFIK */}
           {view === 'calendar' && (
             <div className="mt-3 sm:mt-5">
               {workingSlots.length === 0 ? (
@@ -416,9 +445,8 @@
                 </div>
               ) : (
                 <>
-                  {/* Nowy czysty panel tygodnia i podsumowania */}
+                  {/* Panel tygodnia i podsumowania */}
                   <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-3.5 mb-3.5">
-                    {/* Wiersz 1: Nawigacja po tygodniu */}
                     <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                       <button 
                         onClick={() => setWeekOffset(prev => prev - 1)} 
@@ -456,7 +484,6 @@
                       </button>
                     </div>
 
-                    {/* Wiersz 2: Nowe estetyczne kafelki finansowe (3 równe kolumny) */}
                     <div className="grid grid-cols-3 gap-2 pt-3">
                       <div className="bg-indigo-50/70 border border-indigo-100/80 rounded-xl p-2 text-center">
                         <span className="text-[10px] uppercase font-bold text-indigo-600 block">Plan</span>
@@ -469,13 +496,13 @@
                       </div>
 
                       <div className="bg-amber-50/70 border border-amber-100/80 rounded-xl p-2 text-center">
-                        <span className="text-[10px] uppercase font-bold text-amber-700 block">Do zapłaty</span>
+                        <span className="text-[10px] uppercase font-bold text-amber-700 block">Do pobrania</span>
                         <span className="text-xs sm:text-sm font-black text-amber-900 mt-0.5 block">{stats.pendingToCollect} zł</span>
                       </div>
                     </div>
                   </div>
 
-                  {/* WIDOK MOBILNY: Zakładki dni tygodnia */}
+                  {/* WIDOK MOBILNY */}
                   <div className="block lg:hidden mb-4">
                     <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-1">
                       {weekDays.map((date, idx) => {
@@ -517,7 +544,7 @@
                     </div>
                   </div>
 
-                  {/* WIDOK KOMPUTEROWY: Siatka na 7 kolumn */}
+                  {/* WIDOK KOMPUTEROWY */}
                   <div className="hidden lg:grid lg:grid-cols-7 gap-3">
                     {weekDays.map((date, dayIdx) => renderDayColumn(date, dayIdx, false))}
                   </div>
@@ -526,7 +553,7 @@
             </div>
           )}
 
-          {/* WIDOK 2: USTAWIENIA GODZIN PRACY */}
+          {/* WIDOK 2: USTAWIENIA GODZIN */}
           {view === 'slots_setup' && (
             <SlotsManager 
               workingSlots={workingSlots} 
@@ -818,7 +845,6 @@
             )}
           </div>
 
-          {/* Modal edycji ucznia */}
           {editingStudent && (
             <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
               <div className="bg-white rounded-2xl max-w-sm w-full p-5 shadow-xl border border-slate-200">
@@ -892,12 +918,11 @@
     }
 
     function LessonModal({ data, onClose, students, onAssign, onUpdateStatus, onAddPayment, calculateEndTime, onOpenStudentsTab }) {
-      const { slot, recurring, logKey, student, log, dateStr, dayIdx } = data;
+      const { slot, recurring, logKey, student, log, dateStr, dayIdx, dopłataKwota, hasPartialPayment, isPaid } = data;
       const [selectedStudentId, setSelectedStudentId] = useState(recurring?.studentId || '');
       const [customRate, setCustomRate] = useState(recurring?.rate || 50);
       const [paymentAddVal, setPaymentAddVal] = useState('');
 
-      const isPaid = log?.paidStatus === 'paid' || (student && student.balance >= (recurring?.rate || 0));
       const currentStatus = log?.status || 'scheduled';
 
       const handleAddDeposit = () => {
@@ -969,18 +994,28 @@
               </div>
             ) : (
               <div className="mt-4 space-y-4">
-                <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-sm">
+                {/* Szczegóły rozliczenia */}
+                <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-sm space-y-1">
                   <div className="flex justify-between font-bold text-slate-900">
                     <span>{student?.name}</span>
-                    <span>{recurring.rate} zł</span>
+                    <span>Koszt: {recurring.rate} zł</span>
                   </div>
-                  <div className="text-xs text-slate-500 mt-1">
-                    Środki na koncie / Nadpłata: <strong className="text-indigo-600">{student?.balance || 0} zł</strong>
+                  <div className="text-xs flex justify-between text-slate-600 pt-1">
+                    <span>Środki ucznia (zaliczka):</span>
+                    <strong className="text-indigo-600">{student?.balance || 0} zł</strong>
                   </div>
+
+                  {hasPartialPayment && (
+                    <div className="text-xs flex justify-between text-amber-800 bg-amber-50 p-2 rounded-lg border border-amber-200 mt-2 font-bold">
+                      <span>Do dopłacenia za tę lekcję:</span>
+                      <span>{dopłataKwota} zł</span>
+                    </div>
+                  )}
                 </div>
 
+                {/* Formularz wpłaty */}
                 <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl">
-                  <label className="block text-[11px] font-bold text-emerald-800 mb-1">Wpłata (np. 100 zł za 2 lekcje):</label>
+                  <label className="block text-[11px] font-bold text-emerald-800 mb-1">Wpłać na konto ucznia (np. 100 zł):</label>
                   <div className="flex gap-2">
                     <input 
                       type="number" 
@@ -998,6 +1033,7 @@
                   </div>
                 </div>
 
+                {/* Przyciski statusu */}
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1.5">Status lekcji:</label>
                   <div className="grid grid-cols-3 gap-2">
