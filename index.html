@@ -26,7 +26,7 @@
   <div id="root"></div>
 
   <script type="text/babel">
-    const { useState, useEffect, useMemo, useRef } = React;
+    const { useState, useEffect, useMemo } = React;
 
     const firebaseConfig = {
       apiKey: "AIzaSyBsBQ9k2NT2QtMaiPgwxiXWs8emABm8GzA",
@@ -249,7 +249,6 @@
 
       const weekDays = useMemo(() => getWeekDays(weekOffset), [weekOffset]);
 
-      // Локальный сейф (чтение при запуске)
       const [workingSlots, setWorkingSlots] = useState(() => {
         try { return JSON.parse(localStorage.getItem('tutor_vault_slots')) || []; } catch(e) { return []; }
       });
@@ -269,8 +268,6 @@
         const unsubscribe = docRef.onSnapshot((doc) => {
           if (doc.exists) {
             const data = doc.data();
-            
-            // Если в базе есть данные - обновляем экран и сейф
             if (data.workingSlots && data.workingSlots.length > 0) {
               setWorkingSlots(data.workingSlots);
               localStorage.setItem('tutor_vault_slots', JSON.stringify(data.workingSlots));
@@ -289,7 +286,6 @@
             }
             setSyncStatus('cloudOk');
           } else {
-            // Если база пуста, но в сейфе есть данные - отправляем их в облако
             const localSlots = JSON.parse(localStorage.getItem('tutor_vault_slots') || '[]');
             const localStudents = JSON.parse(localStorage.getItem('tutor_vault_students') || '[]');
             const localRec = JSON.parse(localStorage.getItem('tutor_vault_recurring') || '[]');
@@ -316,13 +312,11 @@
       const saveToCloud = (updates) => {
         setSyncStatus('cloudSaving');
 
-        // Моментальное локальное сохранение
         if (updates.workingSlots) localStorage.setItem('tutor_vault_slots', JSON.stringify(updates.workingSlots));
         if (updates.students) localStorage.setItem('tutor_vault_students', JSON.stringify(updates.students));
         if (updates.recurringLessons) localStorage.setItem('tutor_vault_recurring', JSON.stringify(updates.recurringLessons));
         if (updates.lessonLogs) localStorage.setItem('tutor_vault_logs', JSON.stringify(updates.lessonLogs));
 
-        // Безопасное обновление облака
         docRef.set(updates, { merge: true })
           .then(() => setSyncStatus('cloudOk'))
           .catch((err) => {
@@ -427,7 +421,6 @@
         return `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;
       };
 
-      // Ручной бэкап в файл
       const exportBackup = () => {
         const data = { workingSlots, students, recurringLessons, lessonLogs };
         const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -582,25 +575,29 @@
                               : 'bg-indigo-50/40 border-indigo-100 hover:border-indigo-300'
                           }`}
                         >
-                          <div className="flex justify-between items-start gap-1">
-                            <span className="font-bold text-xs text-slate-900 truncate">{student?.name || t.studentDeleted}</span>
-                            
+                          {/* Полное имя ученика без сжатия */}
+                          <div className="font-bold text-xs text-slate-900 leading-snug mb-1">
+                            {student?.name || t.studentDeleted}
+                          </div>
+
+                          {/* Статус оплаты на отдельной строке */}
+                          <div className="mb-1.5">
                             {isPaid ? (
-                              <span className="text-[10px] px-1.5 py-0.5 rounded font-bold shrink-0 bg-emerald-100 text-emerald-800">
+                              <span className="inline-block text-[10px] px-1.5 py-0.5 rounded font-bold bg-emerald-100 text-emerald-800">
                                 {t.paid}
                               </span>
                             ) : hasPartialPayment ? (
-                              <span className="text-[10px] px-1.5 py-0.5 rounded font-bold shrink-0 bg-amber-100 text-amber-900 border border-amber-300">
+                              <span className="inline-block text-[10px] px-1.5 py-0.5 rounded font-bold bg-amber-100 text-amber-900 border border-amber-300">
                                 {t.surcharge} {dopłataKwota} zł
                               </span>
                             ) : (
-                              <span className="text-[10px] px-1.5 py-0.5 rounded font-bold shrink-0 bg-amber-50 text-amber-800">
+                              <span className="inline-block text-[10px] px-1.5 py-0.5 rounded font-bold bg-amber-50 text-amber-800 border border-amber-200">
                                 {t.toCollect}: {recurring.rate} zł
                               </span>
                             )}
                           </div>
 
-                          <div className="text-xs text-slate-600 mt-1 flex justify-between items-center">
+                          <div className="text-xs text-slate-600 flex justify-between items-center">
                             <span className="font-semibold">{t.cost} {recurring.rate} zł</span>
                             {student?.balance > 0 && (
                               <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.5 rounded">
