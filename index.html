@@ -45,7 +45,7 @@
     const docRef = db.collection('tutor_data').doc('main_schedule');
 
     const DAY_NAMES = ['Poniedziałek', 'Wtorek', 'Środa', 'Czwartek', 'Piątek', 'Sobota', 'Niedziela'];
-    const SHORT_DAYS = ['Pn', 'Wt', 'Śr', 'Czw', 'Pt', 'Sob', 'Nd'];
+    const SHORT_DAYS = ['PN', 'WT', 'ŚR', 'CZW', 'PT', 'SOB', 'ND'];
     const MONTH_NAMES = ['sty', 'lut', 'mar', 'kwi', 'maj', 'cze', 'lip', 'sie', 'wrz', 'paź', 'lis', 'gru'];
 
     function getWeekDays(offset = 0) {
@@ -117,7 +117,7 @@
       }, []);
 
       const saveToCloud = (updates) => {
-        setSyncStatus('Zapisywanie... ⏳');
+        setSyncStatus('Zapis... ⏳');
         docRef.set(updates, { merge: true })
           .then(() => setSyncStatus('Chmura 🟢'))
           .catch(() => setSyncStatus('Błąd 🔴'));
@@ -268,11 +268,11 @@
         return (
           <div 
             key={dateStr} 
-            className={`p-3 rounded-xl border flex flex-col min-h-[360px] transition ${
-              isToday ? 'bg-indigo-50/50 border-indigo-300 ring-2 ring-indigo-200/50' : 'bg-slate-100/70 border-slate-200'
+            className={`p-3 rounded-2xl border flex flex-col min-h-[340px] transition ${
+              isToday ? 'bg-indigo-50/40 border-indigo-300 ring-2 ring-indigo-200/50' : 'bg-slate-100/70 border-slate-200'
             } ${isMobile ? 'w-full shadow-sm' : ''}`}
           >
-            <div className="pb-2 mb-2 border-b border-slate-200 flex justify-between items-center">
+            <div className="pb-2.5 mb-2.5 border-b border-slate-200 flex justify-between items-center">
               <div>
                 <div className={`text-xs font-bold ${isToday ? 'text-indigo-700' : 'text-slate-800'}`}>
                   {DAY_NAMES[dayIdx]}
@@ -363,100 +363,115 @@
       };
 
       return (
-        <div className="max-w-7xl mx-auto p-4 sm:p-6 pb-16">
-          {/* Górny pasek (Header) */}
-          <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-200">
-            <div className="flex items-center gap-3">
-              <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight whitespace-nowrap">
-                📅 TutorFlow
-              </h1>
-              <span className="text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-0.5 rounded-full whitespace-nowrap">
-                {syncStatus}
-              </span>
-              <span className="text-xs text-slate-500 hidden lg:inline-block border-l border-slate-200 pl-3 capitalize">
-                {new Date().toLocaleDateString('pl-PL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+        <div className="max-w-7xl mx-auto p-3 sm:p-6 pb-16">
+          {/* Główny pasek nawigacji */}
+          <header className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-slate-200">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <h1 className="text-xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
+                  📅 TutorFlow
+                </h1>
+                <span className="text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full">
+                  {syncStatus}
+                </span>
+              </div>
+              <span className="text-xs text-slate-500 hidden sm:inline capitalize">
+                {new Date().toLocaleDateString('pl-PL', { weekday: 'short', day: 'numeric', month: 'short' })}
               </span>
             </div>
 
-            {/* Przyciski trybów */}
-            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar shrink-0">
+            {/* Zakładki górne */}
+            <div className="grid grid-cols-3 gap-1.5 sm:flex sm:items-center">
               <button 
                 onClick={() => setView('calendar')} 
-                className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold whitespace-nowrap transition ${view === 'calendar' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'}`}
+                className={`py-2 px-3 text-center rounded-xl text-xs font-bold transition ${view === 'calendar' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'}`}
               >
                 1. Grafik
               </button>
               <button 
                 onClick={() => setView('slots_setup')} 
-                className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold whitespace-nowrap transition ${view === 'slots_setup' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'}`}
+                className={`py-2 px-3 text-center rounded-xl text-xs font-bold transition ${view === 'slots_setup' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'}`}
               >
-                ⚙️ Godziny pracy ({workingSlots.length})
+                ⚙️ Godziny ({workingSlots.length})
               </button>
               <button 
                 onClick={() => setView('students')} 
-                className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold whitespace-nowrap transition ${view === 'students' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'}`}
+                className={`py-2 px-3 text-center rounded-xl text-xs font-bold transition ${view === 'students' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'}`}
               >
                 👥 Uczniowie ({students.length})
               </button>
             </div>
           </header>
 
-          {/* WIDOK 1: KALENDARZ */}
+          {/* WIDOK 1: GRAFIK / KALENDARZ */}
           {view === 'calendar' && (
-            <div className="mt-5">
+            <div className="mt-3 sm:mt-5">
               {workingSlots.length === 0 ? (
-                <div className="bg-amber-50 border border-amber-200 p-8 rounded-2xl text-center max-w-lg mx-auto">
+                <div className="bg-amber-50 border border-amber-200 p-6 rounded-2xl text-center max-w-lg mx-auto my-6">
                   <h3 className="font-bold text-amber-900 text-base mb-1">Godziny pracy nie zostały ustawione</h3>
-                  <p className="text-xs sm:text-sm text-amber-700 mb-4">Dodaj godziny, w których możesz uczyć (np. 14:30), aby kalendarz się zapełnił.</p>
-                  <button onClick={() => setView('slots_setup')} className="px-5 py-2.5 bg-indigo-600 text-white font-bold text-xs sm:text-sm rounded-xl hover:bg-indigo-700 shadow-sm">
+                  <p className="text-xs text-amber-700 mb-4">Dodaj godziny, w których możesz uczyć (np. 14:30), aby kalendarz się zapełnił.</p>
+                  <button onClick={() => setView('slots_setup')} className="px-4 py-2 bg-indigo-600 text-white font-bold text-xs rounded-xl hover:bg-indigo-700 shadow-sm">
                     Ustaw godziny pracy →
                   </button>
                 </div>
               ) : (
                 <>
-                  {/* Pasek tygodnia + Podsumowanie finansowe */}
-                  <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200 shadow-sm mb-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    {/* Zmiana tygodnia */}
-                    <div className="flex items-center gap-2 shrink-0">
+                  {/* Nowy czysty panel tygodnia i podsumowania */}
+                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-3.5 mb-3.5">
+                    {/* Wiersz 1: Nawigacja po tygodniu */}
+                    <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                       <button 
                         onClick={() => setWeekOffset(prev => prev - 1)} 
-                        className="px-3 py-1.5 border border-slate-200 rounded-xl hover:bg-slate-100 font-bold text-xs transition"
+                        className="w-8 h-8 flex items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 active:scale-95 transition font-bold"
+                        title="Poprzedni tydzień"
                       >
-                        ← Poprz.
+                        ‹
                       </button>
-                      <button 
-                        onClick={() => {
-                          setWeekOffset(0);
-                          setSelectedMobileDay(getCurrentDayIndex());
-                        }} 
-                        className={`px-3 py-1.5 border rounded-xl text-xs font-bold transition ${weekOffset === 0 ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'hover:bg-slate-100 border-slate-200'}`}
-                      >
-                        Dzisiaj
-                      </button>
+
+                      <div className="text-center">
+                        <div className="text-xs sm:text-sm font-extrabold text-slate-800">
+                          {weekDays[0].getDate()} {MONTH_NAMES[weekDays[0].getMonth()]} — {weekDays[6].getDate()} {MONTH_NAMES[weekDays[6].getMonth()]} {weekDays[6].getFullYear()} r.
+                        </div>
+                        {weekOffset !== 0 ? (
+                          <button 
+                            onClick={() => {
+                              setWeekOffset(0);
+                              setSelectedMobileDay(getCurrentDayIndex());
+                            }}
+                            className="text-[10px] text-indigo-600 font-bold hover:underline mt-0.5 block mx-auto"
+                          >
+                            Wróć do bieżącego tygodnia
+                          </button>
+                        ) : (
+                          <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider block">Bieżący tydzień</span>
+                        )}
+                      </div>
+
                       <button 
                         onClick={() => setWeekOffset(prev => prev + 1)} 
-                        className="px-3 py-1.5 border border-slate-200 rounded-xl hover:bg-slate-100 font-bold text-xs transition"
+                        className="w-8 h-8 flex items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 active:scale-95 transition font-bold"
+                        title="Następny tydzień"
                       >
-                        Nast. →
+                        ›
                       </button>
-                      <span className="text-xs font-bold text-slate-800 ml-2 whitespace-nowrap">
-                        {weekDays[0].getDate()} {MONTH_NAMES[weekDays[0].getMonth()]} — {weekDays[6].getDate()} {MONTH_NAMES[weekDays[6].getMonth()]} {weekDays[6].getFullYear()} r.
-                      </span>
                     </div>
 
-                    {/* Bloki finansowe */}
-                    <div className="flex flex-wrap items-center gap-2 text-xs">
-                      <div className="bg-indigo-50 px-3 py-1.5 rounded-xl border border-indigo-100 whitespace-nowrap">
-                        <span className="text-indigo-600 font-medium">Plan:</span> <strong className="text-indigo-950 font-bold text-sm ml-1">{stats.expectedTotal} zł</strong>
+                    {/* Wiersz 2: Nowe estetyczne kafelki finansowe (3 równe kolumny) */}
+                    <div className="grid grid-cols-3 gap-2 pt-3">
+                      <div className="bg-indigo-50/70 border border-indigo-100/80 rounded-xl p-2 text-center">
+                        <span className="text-[10px] uppercase font-bold text-indigo-600 block">Plan</span>
+                        <span className="text-xs sm:text-sm font-black text-indigo-950 mt-0.5 block">{stats.expectedTotal} zł</span>
                       </div>
-                      <div className="bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-100 whitespace-nowrap">
-                        <span className="text-emerald-700 font-medium">Opłacone:</span> <strong className="text-emerald-800 font-bold text-sm ml-1">{stats.earnedPaid} zł</strong>
+
+                      <div className="bg-emerald-50/70 border border-emerald-100/80 rounded-xl p-2 text-center">
+                        <span className="text-[10px] uppercase font-bold text-emerald-600 block">Opłacone</span>
+                        <span className="text-xs sm:text-sm font-black text-emerald-800 mt-0.5 block">{stats.earnedPaid} zł</span>
                       </div>
-                      {stats.pendingToCollect > 0 && (
-                        <div className="bg-amber-50 px-3 py-1.5 rounded-xl border border-amber-100 whitespace-nowrap">
-                          <span className="text-amber-700 font-medium">Do pobrania:</span> <strong className="text-amber-800 font-bold text-sm ml-1">{stats.pendingToCollect} zł</strong>
-                        </div>
-                      )}
+
+                      <div className="bg-amber-50/70 border border-amber-100/80 rounded-xl p-2 text-center">
+                        <span className="text-[10px] uppercase font-bold text-amber-700 block">Do zapłaty</span>
+                        <span className="text-xs sm:text-sm font-black text-amber-900 mt-0.5 block">{stats.pendingToCollect} zł</span>
+                      </div>
                     </div>
                   </div>
 
@@ -565,12 +580,12 @@
       };
 
       return (
-        <div className="mt-5 grid grid-cols-1 md:grid-cols-3 gap-5">
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm h-fit">
+        <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm h-fit">
             <h3 className="font-bold text-slate-900 text-base mb-1">Dodaj godziny pracy</h3>
-            <p className="text-xs text-slate-500 mb-4">Wpisz dowolną godzinę (np. 14:30, 15:15).</p>
+            <p className="text-xs text-slate-500 mb-3">Wpisz dowolną godzinę (np. 14:30, 15:15).</p>
             
-            <form onSubmit={handleFormSubmit} className="space-y-4">
+            <form onSubmit={handleFormSubmit} className="space-y-3">
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1">Dzień tygodnia</label>
                 <select 
@@ -613,11 +628,11 @@
             </form>
           </div>
 
-          <div className="md:col-span-2 space-y-4">
+          <div className="md:col-span-2 space-y-3">
             <div className="flex justify-between items-center">
               <h3 className="font-bold text-slate-900 text-base">Aktywne terminy ({workingSlots.length})</h3>
               {workingSlots.length > 0 && (
-                <button onClick={onGoToCalendar} className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-1.5 rounded-xl font-bold transition">
+                <button onClick={onGoToCalendar} className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-xl font-bold transition">
                   Otwórz kalendarz →
                 </button>
               )}
@@ -634,11 +649,11 @@
                   if (daySlots.length === 0) return null;
 
                   return (
-                    <div key={dName} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+                    <div key={dName} className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm">
                       <h4 className="font-bold text-xs text-indigo-600 uppercase tracking-wider mb-2">{dName}</h4>
-                      <div className="space-y-2">
+                      <div className="space-y-1.5">
                         {daySlots.map(s => (
-                          <div key={s.id} className="flex justify-between items-center text-xs bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                          <div key={s.id} className="flex justify-between items-center text-xs bg-slate-50 p-2 rounded-xl border border-slate-100">
                             <span className="font-semibold text-slate-700">
                               ⏰ {s.startTime} – {calculateEndTime(s.startTime, s.duration)} <span className="text-slate-400 font-normal">({s.duration} min)</span>
                             </span>
@@ -699,8 +714,8 @@
       };
 
       return (
-        <div className="mt-5 grid grid-cols-1 md:grid-cols-3 gap-5">
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm h-fit">
+        <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm h-fit">
             <h3 className="font-bold text-slate-900 mb-3">Nowy uczeń</h3>
             <form onSubmit={handleAddStudent} className="space-y-3">
               <div>
@@ -748,7 +763,7 @@
               </div>
             ) : (
               students.map(st => (
-                <div key={st.id} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div key={st.id} className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div>
                     <div className="flex items-center gap-2">
                       <h4 className="font-bold text-slate-900">{st.name}</h4>
@@ -756,8 +771,8 @@
                         {st.defaultRate} zł/lekcja
                       </span>
                     </div>
-                    {st.note && <p className="text-xs text-slate-500 mt-1">{st.note}</p>}
-                    <div className="mt-1.5 text-xs">
+                    {st.note && <p className="text-xs text-slate-500 mt-0.5">{st.note}</p>}
+                    <div className="mt-1 text-xs">
                       Saldo / Zaliczka: <span className={`font-bold ${st.balance > 0 ? 'text-emerald-600' : st.balance < 0 ? 'text-rose-600' : 'text-slate-600'}`}>{st.balance} zł</span>
                       {st.balance >= st.defaultRate && (
                         <span className="ml-2 text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-medium">
