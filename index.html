@@ -104,12 +104,17 @@
         freeSlotConfirm: 'Czy chcesz zwolnić ten termin we wszystkich tygodniach?',
         noStudentsYet: 'Nie masz jeszcze dodanych uczniów',
         createStudentFirst: '+ Dodaj ucznia',
-        assignStudentDesc: 'Przypisz stałego ucznia do tego terminu co tydzień:',
+        assignStudentDesc: 'Przypisz ucznia do tego terminu:',
         selectStudentPlaceholder: '-- Wybierz z listy --',
-        saveWeeklyBtn: 'Zapisz cotygodniowo',
-        studentDepositFormLabel: 'Wpłać na konto ucznia (np. 100 zł):',
+        saveBtnAssign: 'Zapisz zajęcie',
+        repeatTypeLabel: 'Częstotliwość zajęć:',
+        repeatWeekly: 'Co tydzień (stałe)',
+        repeatBiweekly: 'Co 2 tygodnie',
+        repeatOnce: 'Tylko jednorazowo (w ten dzień)',
+        studentDepositFormLabel: 'Wpłata na konto ucznia (np. 100 zł):',
+        paySingleLessonBtn: '💵 Zaznacz jako opłacone',
         lessonStatusLabel: 'Status lekcji:',
-        btnAttended: '✅ Był(a)',
+        btnAttended: '✅ Był',
         btnScheduled: '⏳ Plan',
         btnCancelled: '❌ Odwołane',
         freeSlotBtn: 'Zwolnij termin',
@@ -136,9 +141,9 @@
         plan: 'План',
         paid: 'Оплачено',
         toCollect: 'К оплате',
-        tabSchedule: '1. Grafik',
-        tabSlots: '⚙️ Godziny',
-        tabStudents: '👥 Uczniowie',
+        tabSchedule: '1. График',
+        tabSlots: '⚙️ Часы',
+        tabStudents: '👥 Ученики',
         noSlotsTitle: 'Часы работы не заданы',
         noSlotsDesc: 'Добавьте рабочие часы (напр. 14:30), чтобы календарь заполнился слотами.',
         setSlotsBtn: 'Настроить часы работы →',
@@ -183,11 +188,16 @@
         freeSlotConfirm: 'Освободить этот слот во все недели?',
         noStudentsYet: 'У вас пока нет учеников',
         createStudentFirst: '+ Создать ученика',
-        assignStudentDesc: 'Закрепить ученика за этим слотом еженедельно:',
+        assignStudentDesc: 'Запись ученика на это время:',
         selectStudentPlaceholder: '-- Выбрать из списка --',
-        saveWeeklyBtn: 'Закрепить еженедельно',
+        saveBtnAssign: 'Сохранить занятие',
+        repeatTypeLabel: 'Регулярность занятий:',
+        repeatWeekly: 'Каждую неделю (постоянно)',
+        repeatBiweekly: 'Каждые 2 недели',
+        repeatOnce: 'Только один раз (разово в этот день)',
         studentDepositFormLabel: 'Пополнить баланс ученика (напр. 100 zł):',
-        lessonStatusLabel: 'Статус проведения:',
+        paySingleLessonBtn: '💵 Отметить как оплаченное',
+        lessonStatusLabel: 'Статус урока:',
         btnAttended: '✅ Был',
         btnScheduled: '⏳ План',
         btnCancelled: '❌ Отмена',
@@ -233,8 +243,8 @@
     }
 
     function App() {
-      const [lang, setLang] = useState(() => localStorage.getItem('tutor_lang') || 'pl');
-      const t = I18N[lang] || I18N.pl;
+      const [lang, setLang] = useState(() => localStorage.getItem('tutor_lang') || 'ru');
+      const t = I18N[lang] || I18N.ru;
 
       const toggleLanguage = () => {
         const nextLang = lang === 'pl' ? 'ru' : 'pl';
@@ -368,36 +378,100 @@
         saveToCloud({ students: updated });
       };
 
-      const assignStudentToSlot = (slotId, studentId, customRate) => {
-        const filtered = recurringLessons.filter(r => r.slotId !== slotId);
-        if (studentId) {
+      // ПРИВЯЗКА УЧЕНИКА: ЕЖЕНЕДЕЛЬНО / РАЗ В 2 НЕДЕЛИ / РАЗОВО
+      const assignStudentToSlot = (slotId, studentId, customRate, repeatType, baseDateStr) => {
+        let updatedRec = [...recurringLessons];
+        let updatedLogs = { ...lessonLogs };
+
+        if (!studentId) {
+          updatedRec = updatedRec.filter(r => r.slotId !== slotId);
+        } else {
           const student = students.find(s => s.id === studentId);
-          filtered.push({
-            slotId,
-            studentId,
-            rate: Number(customRate) || (student ? student.defaultRate : 50)
-          });
+          const rate = Number(customRate) || (student ? student.defaultRate : 50);
+
+          if (repeatType === 'once') {
+            const logKey = `${baseDateStr}_${slotId}`;
+            updatedLogs[logKey] = {
+              ...(updatedLogs[logKey] || {}),
+              oneTimeStudentId: studentId,
+              oneTimeRate: rate,
+              status: 'scheduled',
+              paidStatus: 'unpaid'
+            };
+          } else {
+            updatedRec = updatedRec.filter(r => r.slotId !== slotId);
+            updatedRec.push({
+              slotId,
+              studentId,
+              rate,
+              repeatType, // 'weekly' или 'biweekly'
+              startDateStr: baseDateStr
+            });
+          }
         }
-        setRecurringLessons(filtered);
-        saveToCloud({ recurringLessons: filtered });
+
+        setRecurringLessons(updatedRec);
+        setLessonLogs(updatedLogs);
+        saveToCloud({ recurringLessons: updatedRec, lessonLogs: updatedLogs });
         setModalSlot(null);
       };
 
-      const updateLessonStatus = (logKey, studentId, rate, newStatus, newPaidStatus) => {
-        const currentLog = lessonLogs[logKey] || {};
-        const oldPaid = currentLog.paidStatus || 'unpaid';
-        
-        let balanceDelta = 0;
-        if (oldPaid !== 'paid' && newPaidStatus === 'paid') {
-          balanceDelta = -rate;
-        } else if (oldPaid === 'paid' && newPaidStatus !== 'paid') {
-          balanceDelta = rate;
+      // Проверка информации о занятии в конкретную дату
+      const getSlotLessonInfo = (slotId, dateStr) => {
+        const logKey = `${dateStr}_${slotId}`;
+        const log = lessonLogs[logKey];
+
+        if (log && log.oneTimeStudentId) {
+          const st = students.find(s => s.id === log.oneTimeStudentId);
+          return {
+            student: st,
+            studentId: log.oneTimeStudentId,
+            rate: log.oneTimeRate || (st?.defaultRate || 50),
+            isOneTime: true
+          };
         }
 
+        const rel = recurringLessons.find(r => r.slotId === slotId);
+        if (!rel) return null;
+
+        if (rel.repeatType === 'biweekly' && rel.startDateStr) {
+          const d1 = new Date(rel.startDateStr);
+          const d2 = new Date(dateStr);
+          const diffDays = Math.round((d2 - d1) / (1000 * 60 * 60 * 24));
+          const diffWeeks = Math.round(diffDays / 7);
+          if (diffWeeks % 2 !== 0) return null;
+        }
+
+        const st = students.find(s => s.id === rel.studentId);
+        return {
+          student: st,
+          studentId: rel.studentId,
+          rate: rel.rate,
+          isOneTime: false
+        };
+      };
+
+      // ПРЯМАЯ УСТАНОВКА СТАТУСА С МГНОВЕННОЙ ПОДСВЕТКОЙ КНОПКИ
+      const handleSetLessonStatus = (logKey, studentId, rate, newStatus) => {
+        const currentLog = lessonLogs[logKey] || {};
+        let newPaidStatus = currentLog.paidStatus || 'unpaid';
         let updatedStudents = students;
-        if (balanceDelta !== 0) {
-          updatedStudents = students.map(s => s.id === studentId ? { ...s, balance: s.balance + balanceDelta } : s);
-          setStudents(updatedStudents);
+
+        const student = students.find(s => s.id === studentId);
+        const currentBalance = student ? student.balance : 0;
+
+        if (newStatus === 'attended') {
+          if (newPaidStatus !== 'paid' && currentBalance >= rate) {
+            newPaidStatus = 'paid';
+            updatedStudents = students.map(s => s.id === studentId ? { ...s, balance: s.balance - rate } : s);
+            setStudents(updatedStudents);
+          }
+        } else if (newStatus === 'scheduled') {
+          if (currentLog.paidStatus === 'paid' && student) {
+            updatedStudents = students.map(s => s.id === studentId ? { ...s, balance: s.balance + rate } : s);
+            setStudents(updatedStudents);
+            newPaidStatus = 'unpaid';
+          }
         }
 
         const updatedLogs = {
@@ -410,6 +484,48 @@
         };
         setLessonLogs(updatedLogs);
         saveToCloud({ students: updatedStudents, lessonLogs: updatedLogs });
+
+        if (modalSlot && modalSlot.logKey === logKey) {
+          setModalSlot(prev => ({
+            ...prev,
+            log: updatedLogs[logKey],
+            isPaid: newPaidStatus === 'paid'
+          }));
+        }
+      };
+
+      // ОТМЕТИТЬ КАК ОПЛАЧЕННОЕ
+      const handleTogglePaidDirect = (logKey, studentId, rate) => {
+        const currentLog = lessonLogs[logKey] || {};
+        const isCurrentlyPaid = currentLog.paidStatus === 'paid';
+        const targetPaid = !isCurrentlyPaid;
+
+        let updatedStudents = students;
+        const student = students.find(s => s.id === studentId);
+
+        if (targetPaid && student && student.balance >= rate) {
+          updatedStudents = students.map(s => s.id === studentId ? { ...s, balance: s.balance - rate } : s);
+          setStudents(updatedStudents);
+        }
+
+        const updatedLogs = {
+          ...lessonLogs,
+          [logKey]: {
+            ...currentLog,
+            status: currentLog.status || 'attended',
+            paidStatus: targetPaid ? 'paid' : 'unpaid'
+          }
+        };
+        setLessonLogs(updatedLogs);
+        saveToCloud({ students: updatedStudents, lessonLogs: updatedLogs });
+
+        if (modalSlot && modalSlot.logKey === logKey) {
+          setModalSlot(prev => ({
+            ...prev,
+            log: updatedLogs[logKey],
+            isPaid: targetPaid
+          }));
+        }
       };
 
       const calculateEndTime = (startTime, duration) => {
@@ -420,6 +536,69 @@
         const endM = totalMinutes % 60;
         return `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;
       };
+
+      // ХРОНОЛОГИЧЕСКИЙ РАСЧЕТ АВАНСОВ
+      const scheduleTimeline = useMemo(() => {
+        const timeline = {};
+        const tempBalances = {};
+        students.forEach(st => {
+          tempBalances[st.id] = Math.max(0, st.balance || 0);
+        });
+
+        const minOffset = Math.min(0, weekOffset);
+        const maxOffset = Math.max(4, weekOffset + 2);
+
+        const allOccurrences = [];
+        for (let w = minOffset; w <= maxOffset; w++) {
+          const days = getWeekDays(w);
+          days.forEach((date, dayIdx) => {
+            const dateStr = formatDateKey(date);
+            const daySlots = workingSlots.filter(s => s.day === dayIdx).sort((a,b) => a.startTime.localeCompare(b.startTime));
+            daySlots.forEach(slot => {
+              const info = getSlotLessonInfo(slot.id, dateStr);
+              if (!info) return;
+              allOccurrences.push({
+                dateStr,
+                slotId: slot.id,
+                logKey: `${dateStr}_${slot.id}`,
+                studentId: info.studentId,
+                rate: info.rate
+              });
+            });
+          });
+        }
+
+        allOccurrences.sort((a, b) => a.logKey.localeCompare(b.logKey));
+
+        allOccurrences.forEach(item => {
+          const log = lessonLogs[item.logKey];
+          const isCancelled = log?.status === 'cancelled';
+          const isExplicitlyPaid = log?.paidStatus === 'paid';
+
+          if (isCancelled) {
+            timeline[item.logKey] = { isPaid: false, hasPartial: false, dopłata: 0, coveredByBalance: 0 };
+            return;
+          }
+
+          if (isExplicitlyPaid) {
+            timeline[item.logKey] = { isPaid: true, hasPartial: false, dopłata: 0, coveredByBalance: item.rate };
+            return;
+          }
+
+          const currentAvail = tempBalances[item.studentId] || 0;
+          if (currentAvail >= item.rate) {
+            timeline[item.logKey] = { isPaid: true, hasPartial: false, dopłata: 0, coveredByBalance: item.rate };
+            tempBalances[item.studentId] -= item.rate;
+          } else if (currentAvail > 0) {
+            timeline[item.logKey] = { isPaid: false, hasPartial: true, dopłata: item.rate - currentAvail, coveredByBalance: currentAvail };
+            tempBalances[item.studentId] = 0;
+          } else {
+            timeline[item.logKey] = { isPaid: false, hasPartial: false, dopłata: item.rate, coveredByBalance: 0 };
+          }
+        });
+
+        return timeline;
+      }, [students, workingSlots, recurringLessons, lessonLogs, weekOffset]);
 
       const exportBackup = () => {
         const data = { workingSlots, students, recurringLessons, lessonLogs };
@@ -462,30 +641,25 @@
           const daySlots = workingSlots.filter(s => s.day === dayIdx);
           
           daySlots.forEach(slot => {
-            const rel = recurringLessons.find(r => r.slotId === slot.id);
-            if (!rel) return;
+            const info = getSlotLessonInfo(slot.id, dateStr);
+            if (!info) return;
 
             const logKey = `${dateStr}_${slot.id}`;
             const log = lessonLogs[logKey];
-            const student = students.find(s => s.id === rel.studentId);
-            const isExplicitlyPaid = log?.paidStatus === 'paid';
+            const isCancelled = log?.status === 'cancelled';
 
-            if (log?.status !== 'cancelled') {
+            if (!isCancelled) {
               plannedCount++;
-              expectedTotal += rel.rate;
+              expectedTotal += info.rate;
 
-              if (isExplicitlyPaid) {
-                earnedPaid += rel.rate;
+              const tInfo = scheduleTimeline[logKey] || {};
+              if (tInfo.isPaid) {
+                earnedPaid += info.rate;
+              } else if (tInfo.hasPartial) {
+                earnedPaid += tInfo.coveredByBalance;
+                pendingToCollect += tInfo.dopłata;
               } else {
-                const bal = student ? Math.max(0, student.balance) : 0;
-                if (bal >= rel.rate) {
-                  earnedPaid += rel.rate;
-                } else if (bal > 0) {
-                  earnedPaid += bal;
-                  pendingToCollect += (rel.rate - bal);
-                } else {
-                  pendingToCollect += rel.rate;
-                }
+                pendingToCollect += info.rate;
               }
             }
           });
@@ -535,19 +709,15 @@
             ) : (
               <div className="space-y-2 flex-1">
                 {daySlots.map(slot => {
-                  const recurring = recurringLessons.find(r => r.slotId === slot.id);
-                  const student = recurring ? students.find(s => s.id === recurring.studentId) : null;
+                  const info = getSlotLessonInfo(slot.id, dateStr);
+                  const student = info?.student;
                   const logKey = `${dateStr}_${slot.id}`;
                   const log = lessonLogs[logKey];
 
-                  const isExplicitlyPaid = log?.paidStatus === 'paid';
-                  const balance = student ? student.balance : 0;
-                  const isFullyCoveredByBalance = balance >= (recurring?.rate || 0);
-                  const isPaid = isExplicitlyPaid || (log?.paidStatus === undefined && isFullyCoveredByBalance);
-                  
-                  const hasPartialPayment = !isPaid && balance > 0 && balance < (recurring?.rate || 0);
-                  const dopłataKwota = hasPartialPayment ? (recurring.rate - balance) : recurring?.rate;
-
+                  const tInfo = scheduleTimeline[logKey] || { isPaid: false, hasPartial: false, dopłata: info?.rate || 0 };
+                  const isPaid = tInfo.isPaid;
+                  const hasPartialPayment = tInfo.hasPartial;
+                  const dopłataKwota = tInfo.dopłata;
                   const status = log?.status || 'scheduled';
 
                   return (
@@ -557,16 +727,16 @@
                         <span className="text-[10px] text-slate-400">{slot.duration} {t.min}</span>
                       </div>
 
-                      {!recurring ? (
+                      {!info ? (
                         <button 
-                          onClick={() => setModalSlot({ slot, recurring: null, dateStr, dayIdx })}
+                          onClick={() => setModalSlot({ slot, info: null, dateStr, dayIdx })}
                           className="w-full py-2 border border-dashed border-slate-300 hover:border-indigo-400 hover:bg-indigo-50/30 rounded-lg text-slate-400 hover:text-indigo-600 text-xs font-semibold transition"
                         >
                           {t.bookStudent}
                         </button>
                       ) : (
                         <div 
-                          onClick={() => setModalSlot({ slot, recurring, logKey, student, log, dateStr, dayIdx, dopłataKwota, hasPartialPayment, isPaid })}
+                          onClick={() => setModalSlot({ slot, info, logKey, student, log, dateStr, dayIdx, dopłataKwota, hasPartialPayment, isPaid })}
                           className={`p-2 rounded-lg cursor-pointer border transition ${
                             status === 'cancelled' 
                               ? 'bg-rose-50 border-rose-200 opacity-60 text-slate-500' 
@@ -575,12 +745,17 @@
                               : 'bg-indigo-50/40 border-indigo-100 hover:border-indigo-300'
                           }`}
                         >
-                          {/* Полное имя ученика без сжатия */}
-                          <div className="font-bold text-xs text-slate-900 leading-snug mb-1">
-                            {student?.name || t.studentDeleted}
+                          <div className="flex items-center justify-between gap-1 mb-1">
+                            <span className="font-bold text-xs text-slate-900 leading-snug">
+                              {student?.name || t.studentDeleted}
+                            </span>
+                            {info.isOneTime && (
+                              <span className="text-[9px] bg-indigo-100 text-indigo-700 px-1 py-0.5 rounded font-semibold shrink-0">
+                                Разово
+                              </span>
+                            )}
                           </div>
 
-                          {/* Статус оплаты на отдельной строке */}
                           <div className="mb-1.5">
                             {isPaid ? (
                               <span className="inline-block text-[10px] px-1.5 py-0.5 rounded font-bold bg-emerald-100 text-emerald-800">
@@ -592,14 +767,14 @@
                               </span>
                             ) : (
                               <span className="inline-block text-[10px] px-1.5 py-0.5 rounded font-bold bg-amber-50 text-amber-800 border border-amber-200">
-                                {t.toCollect}: {recurring.rate} zł
+                                {t.toCollect}: {info.rate} zł
                               </span>
                             )}
                           </div>
 
                           <div className="text-xs text-slate-600 flex justify-between items-center">
-                            <span className="font-semibold">{t.cost} {recurring.rate} zł</span>
-                            {student?.balance > 0 && (
+                            <span className="font-semibold">{t.cost} {info.rate} zł</span>
+                            {student?.balance > 0 && !isPaid && (
                               <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.5 rounded">
                                 {t.prepayment} {student.balance} zł
                               </span>
@@ -830,7 +1005,8 @@
               onClose={() => setModalSlot(null)}
               students={students}
               onAssign={assignStudentToSlot}
-              onUpdateStatus={updateLessonStatus}
+              onSetStatus={handleSetLessonStatus}
+              onTogglePaid={handleTogglePaidDirect}
               onAddPayment={handleAddPayment}
               calculateEndTime={calculateEndTime}
               onOpenStudentsTab={() => { setModalSlot(null); setView('students'); }}
@@ -1161,10 +1337,11 @@
       );
     }
 
-    function LessonModal({ t, data, onClose, students, onAssign, onUpdateStatus, onAddPayment, calculateEndTime, onOpenStudentsTab }) {
-      const { slot, recurring, logKey, student, log, dateStr, dayIdx, dopłataKwota, hasPartialPayment, isPaid } = data;
-      const [selectedStudentId, setSelectedStudentId] = useState(recurring?.studentId || '');
-      const [customRate, setCustomRate] = useState(recurring?.rate || 50);
+    function LessonModal({ t, data, onClose, students, onAssign, onSetStatus, onTogglePaid, onAddPayment, calculateEndTime, onOpenStudentsTab }) {
+      const { slot, info, logKey, student, log, dateStr, dayIdx, dopłataKwota, hasPartialPayment, isPaid } = data;
+      const [selectedStudentId, setSelectedStudentId] = useState(info?.studentId || '');
+      const [customRate, setCustomRate] = useState(info?.rate || 50);
+      const [repeatType, setRepeatType] = useState('weekly');
       const [paymentAddVal, setPaymentAddVal] = useState('');
 
       const currentStatus = log?.status || 'scheduled';
@@ -1188,7 +1365,7 @@
               <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-xl font-bold p-1">✕</button>
             </div>
 
-            {!recurring ? (
+            {!info ? (
               <div className="mt-4 space-y-4">
                 {students.length === 0 ? (
                   <div className="text-center py-4">
@@ -1217,6 +1394,19 @@
                     </div>
 
                     <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">{t.repeatTypeLabel}</label>
+                      <select 
+                        value={repeatType} 
+                        onChange={e => setRepeatType(e.target.value)}
+                        className="w-full text-sm px-3 py-2 border border-slate-300 rounded-xl bg-white"
+                      >
+                        <option value="weekly">{t.repeatWeekly}</option>
+                        <option value="biweekly">{t.repeatBiweekly}</option>
+                        <option value="once">{t.repeatOnce}</option>
+                      </select>
+                    </div>
+
+                    <div>
                       <label className="block text-xs font-semibold text-slate-600 mb-1">{t.rateLabel}</label>
                       <input 
                         type="number" 
@@ -1227,21 +1417,22 @@
                     </div>
 
                     <button 
-                      onClick={() => onAssign(slot.id, selectedStudentId, customRate)}
+                      onClick={() => onAssign(slot.id, selectedStudentId, customRate, repeatType, dateStr)}
                       disabled={!selectedStudentId}
                       className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 text-white rounded-xl text-sm font-bold transition"
                     >
-                      {t.saveWeeklyBtn}
+                      {t.saveBtnAssign}
                     </button>
                   </>
                 )}
               </div>
             ) : (
               <div className="mt-4 space-y-4">
+                {/* Карточка расчета */}
                 <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-sm space-y-1">
                   <div className="flex justify-between font-bold text-slate-900">
                     <span>{student?.name}</span>
-                    <span>{t.cost} {recurring.rate} zł</span>
+                    <span>{t.cost} {info.rate} zł</span>
                   </div>
                   <div className="text-xs flex justify-between text-slate-600 pt-1">
                     <span>{t.balanceLabel}</span>
@@ -1256,43 +1447,69 @@
                   )}
                 </div>
 
-                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl">
-                  <label className="block text-[11px] font-bold text-emerald-800 mb-1">{t.studentDepositFormLabel}</label>
+                {/* Прямая кнопка оплаты конкретного урока */}
+                <button 
+                  onClick={() => onTogglePaid(logKey, student?.id, info.rate)}
+                  className={`w-full py-2.5 text-xs font-bold rounded-xl transition shadow-sm border ${
+                    isPaid 
+                      ? 'bg-emerald-100 text-emerald-800 border-emerald-300 hover:bg-emerald-200' 
+                      : 'bg-emerald-600 hover:bg-emerald-700 text-white border-transparent'
+                  }`}
+                >
+                  {isPaid ? '✅ Занятие отмечено как оплаченное' : `💵 ${t.paySingleLessonBtn} (${dopłataKwota} zł)`}
+                </button>
+
+                {/* Пополнение аванса */}
+                <div className="p-3 bg-indigo-50/60 border border-indigo-100 rounded-xl">
+                  <label className="block text-[11px] font-bold text-indigo-900 mb-1">{t.studentDepositFormLabel}</label>
                   <div className="flex gap-2">
                     <input 
                       type="number" 
                       placeholder={t.amountPlaceholder} 
                       value={paymentAddVal} 
                       onChange={e => setPaymentAddVal(e.target.value)}
-                      className="w-full text-xs px-3 py-2 border border-emerald-300 rounded-lg bg-white"
+                      className="w-full text-xs px-3 py-2 border border-indigo-200 rounded-lg bg-white"
                     />
                     <button 
                       onClick={handleAddDeposit}
-                      className="px-4 py-2 bg-emerald-600 text-white text-xs font-bold rounded-lg hover:bg-emerald-700"
+                      className="px-4 py-2 bg-indigo-600 text-white text-xs font-bold rounded-lg hover:bg-indigo-700"
                     >
                       {t.depositBtn}
                     </button>
                   </div>
                 </div>
 
+                {/* Кнопки статуса с явным выделением выбранного варианта */}
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1.5">{t.lessonStatusLabel}</label>
                   <div className="grid grid-cols-3 gap-2">
                     <button 
-                      onClick={() => onUpdateStatus(logKey, student?.id, recurring.rate, 'attended', isPaid ? 'paid' : 'unpaid')}
-                      className={`py-2 px-1 text-xs font-bold rounded-xl border transition ${currentStatus === 'attended' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white border-slate-200 hover:bg-slate-50'}`}
+                      onClick={() => onSetStatus(logKey, student?.id, info.rate, 'attended')}
+                      className={`py-2.5 px-1 text-xs font-bold rounded-xl border transition shadow-sm ${
+                        currentStatus === 'attended' 
+                          ? 'bg-emerald-600 text-white border-emerald-600 ring-2 ring-emerald-300' 
+                          : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                      }`}
                     >
                       {t.btnAttended}
                     </button>
                     <button 
-                      onClick={() => onUpdateStatus(logKey, student?.id, recurring.rate, 'scheduled', isPaid ? 'paid' : 'unpaid')}
-                      className={`py-2 px-1 text-xs font-bold rounded-xl border transition ${currentStatus === 'scheduled' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white border-slate-200 hover:bg-slate-50'}`}
+                      onClick={() => onSetStatus(logKey, student?.id, info.rate, 'scheduled')}
+                      className={`py-2.5 px-1 text-xs font-bold rounded-xl border transition shadow-sm ${
+                        currentStatus === 'scheduled' 
+                          ? 'bg-indigo-600 text-white border-indigo-600 ring-2 ring-indigo-300' 
+                          : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                      }`}
                     >
                       {t.btnScheduled}
                     </button>
                     <button 
-                      onClick={() => onUpdateStatus(logKey, student?.id, recurring.rate, 'cancelled', 'unpaid')}
-                      className={`py-2 px-1 text-xs font-bold rounded-xl border transition ${currentStatus === 'cancelled' ? 'bg-rose-600 text-white border-rose-600' : 'bg-white border-slate-200 hover:bg-slate-50'}`}
+                      onClick={() => onSetStatus(logKey, student?.id, info.rate, 'cancelled')}
+                      className={`py-2.5 px-1 text-xs font-bold rounded-xl border transition shadow-sm ${
+                        currentStatus === 'cancelled' 
+                          ? 'bg-rose-600 text-white border-rose-600 ring-2 ring-rose-300' 
+                          : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                      }`}
                     >
                       {t.btnCancelled}
                     </button>
