@@ -112,8 +112,9 @@
         repeatBiweekly: 'Co 2 tygodnie',
         repeatOnce: 'Tylko jednorazowo (w ten dzień)',
         studentDepositFormLabel: 'Wpłata na konto ucznia (np. 100 zł):',
-        paySingleLessonBtn: '💵 Zaznacz jako opłacone',
-        lessonStatusLabel: 'Status lekcji:',
+        paySingleLessonBtn: '💵 Zapłacone na miejscu (gotówka / BLIK)',
+        paidAlreadyBadge: '✅ Ta lekcja jest opłacona',
+        lessonStatusLabel: 'Status obecności na tej lekcji:',
         btnAttended: '✅ Był',
         btnScheduled: '⏳ Plan',
         btnCancelled: '❌ Odwołane',
@@ -196,8 +197,9 @@
         repeatBiweekly: 'Каждые 2 недели',
         repeatOnce: 'Только один раз (разово в этот день)',
         studentDepositFormLabel: 'Пополнить баланс ученика (напр. 100 zł):',
-        paySingleLessonBtn: '💵 Отметить как оплаченное',
-        lessonStatusLabel: 'Статус урока:',
+        paySingleLessonBtn: '💵 Оплачено на месте (наличные / BLIK)',
+        paidAlreadyBadge: '✅ Этот урок полностью оплачен',
+        lessonStatusLabel: 'Статус присутствия на уроке:',
         btnAttended: '✅ Был',
         btnScheduled: '⏳ План',
         btnCancelled: '❌ Отмена',
@@ -373,12 +375,11 @@
       const handleAddPayment = (studentId, amount) => {
         const val = parseFloat(amount);
         if (isNaN(val) || val <= 0) return;
-        const updated = students.map(s => s.id === studentId ? { ...s, balance: s.balance + val } : s);
+        const updated = students.map(s => s.id === studentId ? { ...s, balance: (s.balance || 0) + val } : s);
         setStudents(updated);
         saveToCloud({ students: updated });
       };
 
-      // ПРИВЯЗКА УЧЕНИКА: ЕЖЕНЕДЕЛЬНО / РАЗ В 2 НЕДЕЛИ / РАЗОВО
       const assignStudentToSlot = (slotId, studentId, customRate, repeatType, baseDateStr) => {
         let updatedRec = [...recurringLessons];
         let updatedLogs = { ...lessonLogs };
@@ -404,7 +405,7 @@
               slotId,
               studentId,
               rate,
-              repeatType, // 'weekly' или 'biweekly'
+              repeatType,
               startDateStr: baseDateStr
             });
           }
@@ -416,7 +417,6 @@
         setModalSlot(null);
       };
 
-      // Проверка информации о занятии в конкретную дату
       const getSlotLessonInfo = (slotId, dateStr) => {
         const logKey = `${dateStr}_${slotId}`;
         const log = lessonLogs[logKey];
@@ -451,15 +451,16 @@
         };
       };
 
-      // ПРЯМАЯ УСТАНОВКА СТАТУСА С МГНОВЕННОЙ ПОДСВЕТКОЙ КНОПКИ
+      // 1. Установка статуса присутствия: «Был», «План», «Отмена»
       const handleSetLessonStatus = (logKey, studentId, rate, newStatus) => {
         const currentLog = lessonLogs[logKey] || {};
         let newPaidStatus = currentLog.paidStatus || 'unpaid';
         let updatedStudents = students;
 
         const student = students.find(s => s.id === studentId);
-        const currentBalance = student ? student.balance : 0;
+        const currentBalance = student ? (student.balance || 0) : 0;
 
+        // Если ставим «Был» и у ученика есть аванс — списываем его ровно за этот урок
         if (newStatus === 'attended') {
           if (newPaidStatus !== 'paid' && currentBalance >= rate) {
             newPaidStatus = 'paid';
@@ -467,7 +468,8 @@
             setStudents(updatedStudents);
           }
         } else if (newStatus === 'scheduled') {
-          if (currentLog.paidStatus === 'paid' && student) {
+          // Если возвращаем в «План» урок, оплаченный с баланса
+          if (currentLog.paidStatus === 'paid' && currentLog.paidBy === 'balance' && student) {
             updatedStudents = students.map(s => s.id === studentId ? { ...s, balance: s.balance + rate } : s);
             setStudents(updatedStudents);
             newPaidStatus = 'unpaid';
@@ -494,30 +496,23 @@
         }
       };
 
-      // ОТМЕТИТЬ КАК ОПЛАЧЕННОЕ
-      const handleTogglePaidDirect = (logKey, studentId, rate) => {
+      // 2. Кнопка «Оплачено на месте (наличные / BLIK)»
+      const handlePayOnSite = (logKey, studentId, rate) => {
         const currentLog = lessonLogs[logKey] || {};
         const isCurrentlyPaid = currentLog.paidStatus === 'paid';
         const targetPaid = !isCurrentlyPaid;
-
-        let updatedStudents = students;
-        const student = students.find(s => s.id === studentId);
-
-        if (targetPaid && student && student.balance >= rate) {
-          updatedStudents = students.map(s => s.id === studentId ? { ...s, balance: s.balance - rate } : s);
-          setStudents(updatedStudents);
-        }
 
         const updatedLogs = {
           ...lessonLogs,
           [logKey]: {
             ...currentLog,
             status: currentLog.status || 'attended',
-            paidStatus: targetPaid ? 'paid' : 'unpaid'
+            paidStatus: targetPaid ? 'paid' : 'unpaid',
+            paidBy: targetPaid ? 'onsite' : null
           }
         };
         setLessonLogs(updatedLogs);
-        saveToCloud({ students: updatedStudents, lessonLogs: updatedLogs });
+        saveToCloud({ lessonLogs: updatedLogs });
 
         if (modalSlot && modalSlot.logKey === logKey) {
           setModalSlot(prev => ({
@@ -537,7 +532,7 @@
         return `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;
       };
 
-      // ХРОНОЛОГИЧЕСКИЙ РАСЧЕТ АВАНСОВ
+      // Честный расчет цепочки авансов по календарю
       const scheduleTimeline = useMemo(() => {
         const timeline = {};
         const tempBalances = {};
@@ -1006,7 +1001,7 @@
               students={students}
               onAssign={assignStudentToSlot}
               onSetStatus={handleSetLessonStatus}
-              onTogglePaid={handleTogglePaidDirect}
+              onPayOnSite={handlePayOnSite}
               onAddPayment={handleAddPayment}
               calculateEndTime={calculateEndTime}
               onOpenStudentsTab={() => { setModalSlot(null); setView('students'); }}
@@ -1221,8 +1216,8 @@
                     </div>
                     {st.note && <p className="text-xs text-slate-500 mt-0.5">{st.note}</p>}
                     <div className="mt-1 text-xs">
-                      {t.balanceLabel} <span className={`font-bold ${st.balance > 0 ? 'text-emerald-600' : st.balance < 0 ? 'text-rose-600' : 'text-slate-600'}`}>{st.balance} zł</span>
-                      {st.balance >= st.defaultRate && (
+                      {t.balanceLabel} <span className={`font-bold ${(st.balance || 0) > 0 ? 'text-emerald-600' : (st.balance || 0) < 0 ? 'text-rose-600' : 'text-slate-600'}`}>{st.balance || 0} zł</span>
+                      {(st.balance || 0) >= st.defaultRate && (
                         <span className="ml-2 text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-medium">
                           +{Math.floor(st.balance / st.defaultRate)} {t.prepaidLessonsCount}
                         </span>
@@ -1298,7 +1293,7 @@
                     <label className="block text-xs font-semibold text-slate-600 mb-1">{t.balanceEditLabel}</label>
                     <input 
                       type="number" 
-                      value={editingStudent.balance} 
+                      value={editingStudent.balance || 0} 
                       onChange={e => setEditingStudent({ ...editingStudent, balance: Number(e.target.value) })}
                       className="w-full text-sm px-3 py-2 border border-slate-300 rounded-xl"
                       required
@@ -1337,7 +1332,7 @@
       );
     }
 
-    function LessonModal({ t, data, onClose, students, onAssign, onSetStatus, onTogglePaid, onAddPayment, calculateEndTime, onOpenStudentsTab }) {
+    function LessonModal({ t, data, onClose, students, onAssign, onSetStatus, onPayOnSite, onAddPayment, calculateEndTime, onOpenStudentsTab }) {
       const { slot, info, logKey, student, log, dateStr, dayIdx, dopłataKwota, hasPartialPayment, isPaid } = data;
       const [selectedStudentId, setSelectedStudentId] = useState(info?.studentId || '');
       const [customRate, setCustomRate] = useState(info?.rate || 50);
@@ -1447,17 +1442,22 @@
                   )}
                 </div>
 
-                {/* Прямая кнопка оплаты конкретного урока */}
-                <button 
-                  onClick={() => onTogglePaid(logKey, student?.id, info.rate)}
-                  className={`w-full py-2.5 text-xs font-bold rounded-xl transition shadow-sm border ${
-                    isPaid 
-                      ? 'bg-emerald-100 text-emerald-800 border-emerald-300 hover:bg-emerald-200' 
-                      : 'bg-emerald-600 hover:bg-emerald-700 text-white border-transparent'
-                  }`}
-                >
-                  {isPaid ? '✅ Занятие отмечено как оплаченное' : `💵 ${t.paySingleLessonBtn} (${dopłataKwota} zł)`}
-                </button>
+                {/* Главная кнопка: Оплата на месте */}
+                <div className="space-y-1.5">
+                  <button 
+                    onClick={() => onPayOnSite(logKey, student?.id, info.rate)}
+                    className={`w-full py-2.5 px-3 text-xs font-bold rounded-xl transition shadow-sm border flex items-center justify-center gap-2 ${
+                      isPaid 
+                        ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100' 
+                        : 'bg-emerald-600 hover:bg-emerald-700 text-white border-transparent'
+                    }`}
+                  >
+                    {isPaid ? t.paidAlreadyBadge : `${t.paySingleLessonBtn} (${dopłataKwota} zł)`}
+                  </button>
+                  {isPaid && (
+                    <p className="text-[10px] text-slate-400 text-center">Нажмите ещё раз, если нужно отменить отметку оплаты</p>
+                  )}
+                </div>
 
                 {/* Пополнение аванса */}
                 <div className="p-3 bg-indigo-50/60 border border-indigo-100 rounded-xl">
@@ -1479,7 +1479,7 @@
                   </div>
                 </div>
 
-                {/* Кнопки статуса с явным выделением выбранного варианта */}
+                {/* Кнопки статуса присутствия */}
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1.5">{t.lessonStatusLabel}</label>
                   <div className="grid grid-cols-3 gap-2">
