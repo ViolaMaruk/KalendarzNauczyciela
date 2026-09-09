@@ -112,9 +112,8 @@
         repeatBiweekly: 'Co 2 tygodnie',
         repeatOnce: 'Tylko jednorazowo (w ten dzień)',
         studentDepositFormLabel: 'Wpłata na konto ucznia (np. 100 zł):',
-        paySingleLessonBtn: '💵 Zapłacone na miejscu (gotówka / BLIK)',
-        paidAlreadyBadge: '✅ Ta lekcja jest opłacona',
-        lessonStatusLabel: 'Status obecności na tej lekcji:',
+        paySingleLessonBtn: '💵 Zapłacone za tę lekcję (na miejscu)',
+        lessonStatusLabel: 'Status obecności:',
         btnAttended: '✅ Był',
         btnScheduled: '⏳ Plan',
         btnCancelled: '❌ Odwołane',
@@ -197,9 +196,8 @@
         repeatBiweekly: 'Каждые 2 недели',
         repeatOnce: 'Только один раз (разово в этот день)',
         studentDepositFormLabel: 'Пополнить баланс ученика (напр. 100 zł):',
-        paySingleLessonBtn: '💵 Оплачено на месте (наличные / BLIK)',
-        paidAlreadyBadge: '✅ Этот урок полностью оплачен',
-        lessonStatusLabel: 'Статус присутствия на уроке:',
+        paySingleLessonBtn: '💵 Оплачено за этот урок (на месте)',
+        lessonStatusLabel: 'Статус присутствия:',
         btnAttended: '✅ Был',
         btnScheduled: '⏳ План',
         btnCancelled: '❌ Отмена',
@@ -451,26 +449,25 @@
         };
       };
 
-      // 1. Установка статуса присутствия: «Был», «План», «Отмена»
+      // ПРАВИЛЬНОЕ СПИСАНИЕ: УРОК ПОМЕЧАЕТСЯ ОПЛАЧЕННЫМ И РЕАЛЬНО УМЕНЬШАЕТ БАЛАНС
       const handleSetLessonStatus = (logKey, studentId, rate, newStatus) => {
         const currentLog = lessonLogs[logKey] || {};
         let newPaidStatus = currentLog.paidStatus || 'unpaid';
         let updatedStudents = students;
-
         const student = students.find(s => s.id === studentId);
         const currentBalance = student ? (student.balance || 0) : 0;
 
-        // Если ставим «Был» и у ученика есть аванс — списываем его ровно за этот урок
         if (newStatus === 'attended') {
+          // Если урок состоялся и есть аванс — списываем ровно стоимость урока
           if (newPaidStatus !== 'paid' && currentBalance >= rate) {
             newPaidStatus = 'paid';
             updatedStudents = students.map(s => s.id === studentId ? { ...s, balance: s.balance - rate } : s);
             setStudents(updatedStudents);
           }
         } else if (newStatus === 'scheduled') {
-          // Если возвращаем в «План» урок, оплаченный с баланса
-          if (currentLog.paidStatus === 'paid' && currentLog.paidBy === 'balance' && student) {
-            updatedStudents = students.map(s => s.id === studentId ? { ...s, balance: s.balance + rate } : s);
+          // Если вернули в «План» урок, оплаченный с баланса — возвращаем деньги на баланс
+          if (currentLog.paidStatus === 'paid' && currentLog.paidFromBalance) {
+            updatedStudents = students.map(s => s.id === studentId ? { ...s, balance: (s.balance || 0) + rate } : s);
             setStudents(updatedStudents);
             newPaidStatus = 'unpaid';
           }
@@ -481,7 +478,8 @@
           [logKey]: {
             ...currentLog,
             status: newStatus,
-            paidStatus: newPaidStatus
+            paidStatus: newPaidStatus,
+            paidFromBalance: newPaidStatus === 'paid' && currentBalance >= rate
           }
         };
         setLessonLogs(updatedLogs);
@@ -496,11 +494,21 @@
         }
       };
 
-      // 2. Кнопка «Оплачено на месте (наличные / BLIK)»
+      // ОПЛАТА НА МЕСТЕ: СТАВИТ «ОПЛАЧЕНО», НЕ ТРОГАЯ БАЛАНС ДРУГИХ НЕДЕЛЬ
       const handlePayOnSite = (logKey, studentId, rate) => {
         const currentLog = lessonLogs[logKey] || {};
         const isCurrentlyPaid = currentLog.paidStatus === 'paid';
         const targetPaid = !isCurrentlyPaid;
+
+        let updatedStudents = students;
+        const student = students.find(s => s.id === studentId);
+
+        // Если у ученика лежал аванс (например, он принёс 55 zł и вы случайно нажали "Внести"),
+        // списываем эти 55 zł с баланса ученика, чтобы они не ушли на следующую неделю!
+        if (targetPaid && student && (student.balance || 0) >= rate) {
+          updatedStudents = students.map(s => s.id === studentId ? { ...s, balance: s.balance - rate } : s);
+          setStudents(updatedStudents);
+        }
 
         const updatedLogs = {
           ...lessonLogs,
@@ -508,11 +516,11 @@
             ...currentLog,
             status: currentLog.status || 'attended',
             paidStatus: targetPaid ? 'paid' : 'unpaid',
-            paidBy: targetPaid ? 'onsite' : null
+            paidOnSite: targetPaid
           }
         };
         setLessonLogs(updatedLogs);
-        saveToCloud({ lessonLogs: updatedLogs });
+        saveToCloud({ students: updatedStudents, lessonLogs: updatedLogs });
 
         if (modalSlot && modalSlot.logKey === logKey) {
           setModalSlot(prev => ({
@@ -532,7 +540,7 @@
         return `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;
       };
 
-      // Честный расчет цепочки авансов по календарю
+      // ХРОНОЛОГИЧЕСКИЙ РАСЧЕТ ОСТАТКОВ
       const scheduleTimeline = useMemo(() => {
         const timeline = {};
         const tempBalances = {};
@@ -1442,22 +1450,17 @@
                   )}
                 </div>
 
-                {/* Главная кнопка: Оплата на месте */}
-                <div className="space-y-1.5">
-                  <button 
-                    onClick={() => onPayOnSite(logKey, student?.id, info.rate)}
-                    className={`w-full py-2.5 px-3 text-xs font-bold rounded-xl transition shadow-sm border flex items-center justify-center gap-2 ${
-                      isPaid 
-                        ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100' 
-                        : 'bg-emerald-600 hover:bg-emerald-700 text-white border-transparent'
-                    }`}
-                  >
-                    {isPaid ? t.paidAlreadyBadge : `${t.paySingleLessonBtn} (${dopłataKwota} zł)`}
-                  </button>
-                  {isPaid && (
-                    <p className="text-[10px] text-slate-400 text-center">Нажмите ещё раз, если нужно отменить отметку оплаты</p>
-                  )}
-                </div>
+                {/* Кнопка оплаты этого урока */}
+                <button 
+                  onClick={() => onPayOnSite(logKey, student?.id, info.rate)}
+                  className={`w-full py-2.5 px-3 text-xs font-bold rounded-xl transition shadow-sm border flex items-center justify-center gap-2 ${
+                    isPaid 
+                      ? 'bg-emerald-100 text-emerald-800 border-emerald-300 hover:bg-emerald-200' 
+                      : 'bg-emerald-600 hover:bg-emerald-700 text-white border-transparent'
+                  }`}
+                >
+                  {isPaid ? '✅ Этот урок оплачен' : `${t.paySingleLessonBtn} (${dopłataKwota} zł)`}
+                </button>
 
                 {/* Пополнение аванса */}
                 <div className="p-3 bg-indigo-50/60 border border-indigo-100 rounded-xl">
